@@ -133,7 +133,15 @@ type AuthSetupMode = "invite" | "recovery";
 const ALL_ROLES: AppRole[] = ["admin", "front_desk", "prepress", "press", "finishing"];
 const OFFICE_ROLES: AppRole[] = ["admin", "front_desk"];
 
-type NavGroup = "Work" | "Business" | "System";
+/**
+ * Navigation follows the path a job actually takes through the shop: it arrives
+ * (Sales), it gets made (Production), it gets billed (Customers), and the shop
+ * itself is configured (Administration). The previous grouping split screens
+ * into "Work", "Business", and "System", which put Quotes and Orders under one
+ * heading and Invoices and Email Center under another, so related steps of the
+ * same job were spread across the sidebar.
+ */
+type NavGroup = "Production" | "Sales" | "Customers" | "Administration";
 
 type MenuItem = {
   id?: string;
@@ -145,28 +153,53 @@ type MenuItem = {
 };
 
 const menu: MenuItem[] = [
-  { view: "Dashboard", icon: LayoutDashboard, roles: ["admin"], group: "Work" },
-  { view: "Workflow", icon: ClipboardList, roles: ALL_ROLES, group: "Work" },
-  { view: "Assigned Work", icon: CheckCircle2, roles: ALL_ROLES, group: "Work" },
-  { view: "Orders", icon: Boxes, roles: OFFICE_ROLES, group: "Work" },
-  { view: "New Estimate / Job", icon: Gauge, roles: OFFICE_ROLES, group: "Work" },
-  { view: "Quotes", icon: FileText, roles: OFFICE_ROLES, group: "Work" },
-  { view: "Invoices", icon: Receipt, roles: OFFICE_ROLES, group: "Business" },
-  { view: "Email Center", icon: Mail, roles: OFFICE_ROLES, group: "Business" },
-  { view: "Portal Requests", icon: ClipboardList, roles: OFFICE_ROLES, group: "Work" },
-  { view: "Customer Portal", icon: Users, roles: OFFICE_ROLES, group: "Business" },
-  { view: "Files", icon: FileText, roles: ["admin"], group: "Business" },
-  { view: "Catalog", icon: Boxes, roles: ["admin"], group: "Business" },
-  { view: "Back Office", icon: Database, roles: ["admin"], group: "System" },
-  { view: "Owner Operations", icon: Activity, roles: ["admin"], group: "System" },
-  { view: "Admin", icon: UserCog, roles: ["admin"], group: "System" },
-  { view: "Settings", icon: SettingsIcon, roles: ["admin"], group: "System" }
+  // Production. The only group every role can see, and the only group a press,
+  // prepress, or finishing user sees at all.
+  { view: "Assigned Work", icon: CheckCircle2, roles: ALL_ROLES, group: "Production" },
+  { view: "Workflow", icon: ClipboardList, roles: ALL_ROLES, group: "Production" },
+
+  // Sales and intake, in the order a job moves through them.
+  { view: "Email Center", icon: Mail, roles: OFFICE_ROLES, group: "Sales" },
+  { view: "Portal Requests", icon: ClipboardList, roles: OFFICE_ROLES, group: "Sales" },
+  { view: "New Estimate / Job", icon: Gauge, roles: OFFICE_ROLES, group: "Sales" },
+  { view: "Quotes", icon: FileText, roles: OFFICE_ROLES, group: "Sales" },
+  { view: "Orders", icon: Boxes, roles: OFFICE_ROLES, group: "Sales" },
+
+  // Customers and money. Never visible to production roles: the server already
+  // strips invoice fields for those roles, and the sidebar now matches.
+  { view: "Customer Portal", icon: Users, roles: OFFICE_ROLES, group: "Customers" },
+  { view: "Invoices", icon: Receipt, roles: OFFICE_ROLES, group: "Customers" },
+  { view: "Files", icon: FileText, roles: ["admin"], group: "Customers" },
+
+  // Running the shop.
+  { view: "Dashboard", icon: LayoutDashboard, roles: ["admin"], group: "Administration" },
+  { view: "Catalog", icon: Boxes, roles: ["admin"], group: "Administration" },
+  { view: "Back Office", icon: Database, roles: ["admin"], group: "Administration" },
+  { view: "Owner Operations", icon: Activity, roles: ["admin"], group: "Administration" },
+  { view: "Admin", icon: UserCog, roles: ["admin"], group: "Administration" },
+  { view: "Settings", icon: SettingsIcon, roles: ["admin"], group: "Administration" }
 ];
 
 const navGroupLabels: Record<NavGroup, string> = {
-  Work: "Daily work",
-  Business: "Business",
-  System: "Administration"
+  Production: "Production",
+  Sales: "Sales & intake",
+  Customers: "Customers & billing",
+  Administration: "Shop administration"
+};
+
+const NAV_GROUP_ORDER: NavGroup[] = ["Production", "Sales", "Customers", "Administration"];
+
+/**
+ * Where each role starts their day. The owner wants the whole shop at a glance,
+ * the front desk starts in the inbox, and a production user wants the work that
+ * is actually assigned to them rather than the full job board.
+ */
+const roleLandingView: Record<AppRole, AppView> = {
+  admin: "Dashboard",
+  front_desk: "Email Center",
+  prepress: "Assigned Work",
+  press: "Assigned Work",
+  finishing: "Assigned Work"
 };
 
 const ESTIMATE_DRAFT_STORAGE_KEY = "gross-printing-estimate-draft";
@@ -1071,10 +1104,15 @@ export function MISApp() {
     updatedAt: "2026-08-17T00:00:00.000Z"
   };
   const visibleMenu = menu.filter((item) => item.roles.includes(currentRole));
-  const groupedVisibleMenu = (["Work", "Business", "System"] as NavGroup[])
+  const groupedVisibleMenu = NAV_GROUP_ORDER
     .map((group) => ({ group, items: visibleMenu.filter((item) => item.group === group) }))
     .filter((section) => section.items.length > 0);
-  const defaultView = visibleMenu[0]?.view ?? "Workflow";
+  // Land each role on the screen their day starts from, falling back to the
+  // first screen they are allowed to open.
+  const landing = roleLandingView[currentRole];
+  const defaultView = landing && roleCanAccessView(currentRole, landing)
+    ? landing
+    : visibleMenu[0]?.view ?? "Workflow";
   const displayView = roleCanAccessView(currentRole, activeView) ? activeView : defaultView;
   const ActiveViewIcon = visibleMenu.find((item) => item.view === displayView)?.icon ?? LayoutDashboard;
 
