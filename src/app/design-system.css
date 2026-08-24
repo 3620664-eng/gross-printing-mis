@@ -1,0 +1,319 @@
+/*
+ * Gross Printing design system.
+ *
+ * One place where colour, spacing, type, and shape are decided. Before this
+ * file the same decisions were made three times over: globals.css, then
+ * ui-foundation.css redefining the same aliases with slightly different values,
+ * then a run of release-named stylesheets patching whatever the previous pass
+ * had made worse.
+ *
+ * The token values here match what ui-foundation.css was already producing, so
+ * adopting this file changes nothing on screen. What changes is that there is
+ * now a single definition to edit.
+ *
+ * Loaded last, so these tokens win over the older duplicates.
+ */
+
+:root {
+  /* Surfaces, from furthest back to closest to the reader. */
+  --gp-canvas: #f3f5f7;
+  --gp-surface: #ffffff;
+  --gp-surface-muted: #f8f9fa;
+  --gp-surface-warm: #fcfaf5;
+
+  /* Text. Ink for content, soft for secondary, muted for labels. */
+  --gp-ink: #17212b;
+  --gp-ink-soft: #344452;
+  --gp-muted: #6b7783;
+
+  /* Borders. Strong is for a line that has to separate two busy areas. */
+  --gp-line: #dde3e8;
+  --gp-line-strong: #cbd4dc;
+
+  /* Brand and status. Gold is the shop's colour; the rest carry meaning. */
+  --gp-gold: #9a6810;
+  --gp-gold-hover: #7d540d;
+  --gp-gold-soft: #fff6df;
+  --gp-green: #217451;
+  --gp-green-soft: #eef8f2;
+  --gp-red: #b33b2d;
+  --gp-red-soft: #fdf0ee;
+  --gp-amber: #8c5e08;
+  --gp-amber-soft: #fff8e8;
+  --gp-blue: #315f7b;
+  --gp-blue-soft: #eef4f9;
+
+  /* Shape. */
+  --gp-radius-sm: 8px;
+  --gp-radius-md: 12px;
+  --gp-radius-lg: 16px;
+  --gp-radius-pill: 999px;
+
+  /* Depth. */
+  --gp-shadow-sm: 0 1px 2px rgba(20, 33, 43, 0.05), 0 5px 16px rgba(20, 33, 43, 0.045);
+  --gp-shadow-md: 0 14px 38px rgba(20, 33, 43, 0.10);
+  --gp-focus: 0 0 0 3px rgba(154, 104, 16, 0.16);
+
+  /*
+   * Spacing scale. Every gap and pad in new work should be one of these, so
+   * spacing stays consistent instead of drifting one pixel per release.
+   */
+  --gp-space-1: 4px;
+  --gp-space-2: 8px;
+  --gp-space-3: 12px;
+  --gp-space-4: 16px;
+  --gp-space-5: 24px;
+  --gp-space-6: 32px;
+
+  /* Type scale. */
+  --gp-text-xs: 10px;
+  --gp-text-sm: 11px;
+  --gp-text-base: 13px;
+  --gp-text-md: 15px;
+  --gp-text-lg: 1.15rem;
+  --gp-text-xl: 1.4rem;
+
+  /*
+   * Legacy aliases. Older stylesheets and components refer to these names
+   * directly; pointing them at the tokens above keeps one source of truth
+   * without needing to rewrite thousands of existing rules.
+   */
+  --bg: var(--gp-canvas);
+  --panel: var(--gp-surface);
+  --panel-soft: var(--gp-surface-muted);
+  --ink: var(--gp-ink);
+  --muted: var(--gp-muted);
+  --line: var(--gp-line);
+  --line-strong: var(--gp-line-strong);
+  --brand: var(--gp-gold);
+  --brand-dark: #30291f;
+  --green: var(--gp-green);
+  --accent: var(--gp-red);
+  --shadow: var(--gp-shadow-md);
+}
+
+/* ============================================================
+   Email intake: the instant read
+   ============================================================
+   Shown the moment a customer email is opened, before any AI pass. Four facts,
+   equally weighted, in the order staff needs them: who wrote in, whether the
+   shop knows them, the size they asked for, and what the file actually is.
+*/
+
+.intake-read {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--gp-space-2);
+  margin: var(--gp-space-3) 0;
+}
+
+.intake-read-item {
+  min-width: 0;
+  padding: var(--gp-space-3);
+  border: 1px solid var(--gp-line);
+  border-radius: var(--gp-radius-md);
+  background: var(--gp-surface);
+}
+
+.intake-read-item > small {
+  display: block;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.intake-read-item > strong {
+  display: block;
+  margin-top: var(--gp-space-1);
+  overflow: hidden;
+  font-size: var(--gp-text-md);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intake-read-item > span {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A fact the shop does not have yet. Stated plainly, not alarming: a missing
+   size is normal on a first email, and staff simply needs to ask for it. */
+.intake-read-item > strong.intake-read-missing {
+  color: var(--gp-muted);
+  font-weight: 600;
+}
+
+/* A match the system found but will not act on without staff confirming it. */
+.intake-read-item > strong.intake-read-pending {
+  color: var(--gp-amber);
+}
+
+@media (max-width: 1100px) {
+  .intake-read {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .intake-read {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Shop floor
+   ============================================================
+   The production view for press, prepress, and finishing staff. Deliberately
+   plain and large: it is read across a room, next to a running press, often on
+   a shared screen. It shows assigned work and nothing about money.
+*/
+
+.floor-page {
+  display: grid;
+  gap: var(--gp-space-4);
+  padding: var(--gp-space-4);
+}
+
+.floor-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--gp-space-4);
+  flex-wrap: wrap;
+}
+
+.floor-heading h1 {
+  margin: 0;
+  font-size: var(--gp-text-xl);
+}
+
+.floor-heading p {
+  margin: var(--gp-space-1) 0 0;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-base);
+}
+
+.floor-queue {
+  display: grid;
+  gap: var(--gp-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.floor-card {
+  display: grid;
+  gap: var(--gp-space-3);
+  padding: var(--gp-space-4);
+  border: 1px solid var(--gp-line);
+  border-left: 4px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-md);
+  background: var(--gp-surface);
+  box-shadow: var(--gp-shadow-sm);
+}
+
+/* Due today or already late. The only colour on this screen that means hurry. */
+.floor-card.due-now {
+  border-left-color: var(--gp-red);
+}
+
+.floor-card.due-soon {
+  border-left-color: var(--gp-amber);
+}
+
+.floor-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--gp-space-3);
+}
+
+.floor-card-top strong {
+  display: block;
+  font-size: var(--gp-text-lg);
+}
+
+.floor-card-top small {
+  display: block;
+  margin-top: 2px;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-base);
+}
+
+.floor-card-spec {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: var(--gp-space-2);
+  padding-top: var(--gp-space-3);
+  border-top: 1px solid var(--gp-line);
+}
+
+.floor-card-spec span {
+  display: block;
+}
+
+.floor-card-spec small {
+  display: block;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-xs);
+  text-transform: uppercase;
+}
+
+.floor-card-spec b {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--gp-text-md);
+}
+
+.floor-card-actions {
+  display: flex;
+  gap: var(--gp-space-2);
+  flex-wrap: wrap;
+}
+
+.floor-card-actions button {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 0 var(--gp-space-4);
+  border: 1px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+  color: var(--gp-ink);
+  font-size: var(--gp-text-base);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.floor-card-actions button:hover {
+  background: var(--gp-surface-muted);
+}
+
+.floor-card-actions button.primary {
+  border-color: var(--gp-gold);
+  background: var(--gp-gold);
+  color: #fff;
+}
+
+.floor-card-actions button.primary:hover {
+  background: var(--gp-gold-hover);
+}
+
+.floor-card-actions button:focus-visible {
+  outline: none;
+  box-shadow: var(--gp-focus);
+}
+
+.floor-empty {
+  display: grid;
+  place-items: center;
+  gap: var(--gp-space-2);
+  padding: var(--gp-space-6);
+  border: 1px dashed var(--gp-line-strong);
+  border-radius: var(--gp-radius-md);
+  color: var(--gp-muted);
+  text-align: center;
+}

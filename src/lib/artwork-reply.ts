@@ -98,8 +98,17 @@ function measuredLabel(result: ArtworkPreflightResult, unit: SizeUnit) {
  * trimming a customer's artwork without approval is the expensive mistake.
  */
 export function artworkMismatchReply(result: ArtworkPreflightResult, options: ArtworkReplyOptions = {}) {
-  const unit = options.unit ?? "in";
   const greeting = options.customerName ? `Hi ${options.customerName},` : "Hi,";
+  const closing = options.staffName ? `Thanks,\n${options.staffName}\nGross Printing` : "Thanks,\nGross Printing";
+  return [greeting, "", artworkMismatchBody(result, options), "", closing].join("\n");
+}
+
+/**
+ * The mismatch explanation on its own, with no greeting or signature, so it can
+ * be appended to a reply draft that already asks the customer other questions.
+ */
+export function artworkMismatchBody(result: ArtworkPreflightResult, options: ArtworkReplyOptions = {}) {
+  const unit = options.unit ?? "in";
   const choices = sizeChoices(result, unit);
 
   const requested = result.requestedWidth && result.requestedHeight
@@ -107,7 +116,7 @@ export function artworkMismatchReply(result: ArtworkPreflightResult, options: Ar
     : undefined;
   const measured = measuredLabel(result, unit);
 
-  const lines: string[] = [greeting, ""];
+  const lines: string[] = [];
 
   if (requested) {
     lines.push(
@@ -144,8 +153,7 @@ export function artworkMismatchReply(result: ArtworkPreflightResult, options: Ar
     );
   }
 
-  lines.push("", "We will not resize, crop, or rotate anything until you confirm.", "");
-  lines.push(options.staffName ? `Thanks,\n${options.staffName}\nGross Printing` : "Thanks,\nGross Printing");
+  lines.push("", "We will not resize, crop, or rotate anything until you confirm.");
 
   return lines.join("\n");
 }

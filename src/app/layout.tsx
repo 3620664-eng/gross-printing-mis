@@ -6,14 +6,9 @@ import "./email-center.css";
 import "./ai-assistant.css";
 import "./customer-self-service.css";
 import "./portal-requests.css";
-import "./auth-access-v063.css";
-import "./fast-navigation-v064.css";
-import "./owner-operations-v065.css";
-import "./multi-item-orders-v066.css";
-import "./v0674-b2b-smart-quotes.css";
-import "./mis-comfort-v068.css";
-import "./clean-workspace-v0720.css";
-import "./option-one-workspace-v0736.css";
+import "./workspace-refinements.css";
+// Loaded last so the design tokens it defines are the ones that apply.
+import "./design-system.css";
 
 export const metadata: Metadata = {
   title: {

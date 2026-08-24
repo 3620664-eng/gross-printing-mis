@@ -52,6 +52,9 @@ import {
 } from "@/lib/pricing";
 import { CATEGORY_FINISHING, type ProductPreset } from "@/lib/product-catalog";
 import { matchCustomerCandidates } from "@/lib/customer-match";
+import { reviewIntake } from "@/lib/email-intake-review";
+import { artworkMismatchBody, artworkMismatchReply } from "@/lib/artwork-reply";
+import { formatSize, type SizeUnit } from "@/lib/requested-size";
 import { classifyBusinessEmail, emailBusinessCategoryLabel, emailHeaderAddress, emailHeaderName } from "@/lib/email-business-classifier";
 import { buildCommunicationRecommendation, type CommunicationRecommendation } from "@/lib/communication-learning";
 import { userVisibleEmailAttachments, userVisibleThreadAttachments } from "@/lib/email-attachment-utils";
@@ -444,21 +447,25 @@ function sameSize(aWidth: number, aHeight: number, bWidth: number, bHeight: numb
   return Math.abs(a[0] - b[0]) <= 0.15 && Math.abs(a[1] - b[1]) <= 0.15;
 }
 
+/** Two requested dimensions are the same when both are absent or within a 64th of an inch. */
+function sameRequestedSize(a?: number, b?: number) {
+  if (a === undefined && b === undefined) return true;
+  if (a === undefined || b === undefined) return false;
+  return Math.abs(a - b) < 0.016;
+}
+
 function cleanSize(value?: number) {
   if (!Number.isFinite(value)) return "—";
   return String(Number((value ?? 0).toFixed(3))).replace(/\.?0+$/, "");
 }
 
-function preflightQuestion(result: ArtworkPreflightResult) {
-  const requested = result.requestedWidth && result.requestedHeight
-    ? `${cleanSize(result.requestedWidth)} × ${cleanSize(result.requestedHeight)}`
-    : "the requested size";
-  const measured = result.artworkWidth && result.artworkHeight
-    ? `${cleanSize(result.artworkWidth)} × ${cleanSize(result.artworkHeight)}`
-    : result.artworkWidthPixels && result.artworkHeightPixels
-      ? `${result.artworkWidthPixels} × ${result.artworkHeightPixels} px`
-      : "a different proportion";
-  return `We received ${result.filename}. You requested ${requested} inches, but the file measures ${measured}. Please confirm whether the finished size should stay ${requested}, or if we should use the file size/proportion instead. We will not resize or crop it without confirmation.`;
+/**
+ * Wording for a mismatch between the size the customer asked for and the size
+ * of the file they sent. It names both proportional outcomes so the customer
+ * can answer by picking one, rather than being asked to work the sizes out.
+ */
+function preflightQuestion(result: ArtworkPreflightResult, unit: SizeUnit = "in") {
+  return artworkMismatchBody(result, { unit });
 }
 
 function canonicalStatus(status: EmailIntakeStatus): Exclude<EmailIntakeStatus, "Draft" | "In Review"> {
@@ -1067,6 +1074,15 @@ export function EmailCenter({
   const selectedTicketThread = selectedTicket
     ? threads.find((thread) => thread.id === selectedTicket.threadId)
     : undefined;
+  /**
+   * The AI-free read of the opened ticket: who sent it, the finished size in
+   * their own words, and whether the shop already has them on file. Available
+   * the moment the ticket opens, and available at all when no AI key is set.
+   */
+  const selectedTicketReview = useMemo(
+    () => (selectedTicket ? reviewIntake(selectedTicket, selectedTicketThread, customers) : undefined),
+    [selectedTicket, selectedTicketThread, customers]
+  );
   const selectedTicketJobs = useMemo(() => {
     if (!selectedTicket?.customerId) return [];
     return jobs
@@ -2052,7 +2068,12 @@ export function EmailCenter({
   async function analyzeTicket(
     ticket: EmailIntakeTicket,
     showMessage = true,
-    mode: "auto" | "basic" | "advanced" = "auto"
+    mode: "auto" | "basic" | "advanced" = "auto",
+    /**
+     * Artwork already measured by the instant review for this same requested
+     * size. Reusing it avoids a second round of mailbox attachment reads.
+     */
+    measured?: ArtworkPreflightResult[]
   ) {
     const sourceThread = threads.find((thread) => thread.id === ticket.threadId);
     const requestText = buildAiTicketRequestText(ticket, sourceThread);
@@ -2164,9 +2185,23 @@ export function EmailCenter({
       (ticket.customerId ? customers.find((customer) => customer.id === ticket.customerId) : undefined) ??
       (automaticCandidate ? customers.find((customer) => customer.id === automaticCandidate.customerId) : undefined);
     const possibleCandidate = !matchedCustomer ? matchCandidates[0] : undefined;
-    const requestedWidth = spec.finishedWidth ?? ticket.pieceWidth;
-    const requestedHeight = spec.finishedHeight ?? ticket.pieceHeight;
-    const freshPreflight = await preflightTicketArtwork(ticket, sourceThread, requestedWidth, requestedHeight);
+    // The customer's own wording is the most reliable statement of finished
+    // size, so a size read directly from the email outranks the model's guess.
+    // The model still fills in the size when the email never states one.
+    const statedSize = reviewIntake(ticket, sourceThread, customers).requestedSize;
+    const requestedWidth = statedSize?.widthInches ?? spec.finishedWidth ?? ticket.pieceWidth;
+    const requestedHeight = statedSize?.heightInches ?? spec.finishedHeight ?? ticket.pieceHeight;
+    const sizeUnit = statedSize?.unit ?? "in";
+    // Reuse the instant review's measurements when they were taken against this
+    // same requested size; otherwise the size changed and the artwork must be
+    // re-checked against it.
+    const reusable = measured?.length && measured.every((item) =>
+      sameRequestedSize(item.requestedWidth, requestedWidth) &&
+      sameRequestedSize(item.requestedHeight, requestedHeight)
+    );
+    const freshPreflight = reusable && measured
+      ? measured
+      : await preflightTicketArtwork(ticket, sourceThread, requestedWidth, requestedHeight);
     const previousPreflight = new Map((ticket.artworkPreflight ?? []).map((item) => [item.attachmentId, item]));
     const artworkPreflight = freshPreflight.map((item) => {
       const previous = previousPreflight.get(item.attachmentId);
@@ -2186,7 +2221,7 @@ export function EmailCenter({
       aiMissingInformation: spec.missingInformation
     };
     const standardQuestions = spec.missingInformation.length ? ticketQuestionDraft(questionTicket) : "";
-    const artworkQuestions = blockingPreflight.map(preflightQuestion).join("\n\n");
+    const artworkQuestions = blockingPreflight.map((item) => preflightQuestion(item, sizeUnit)).join("\n\n");
     const customerReplyDraft = [standardQuestions, artworkQuestions].filter(Boolean).join("\n\n") || ticket.customerReplyDraft;
     const matchForAudit = automaticCandidate ?? possibleCandidate;
     const workPathSuggestion = suggestTicketWorkPath(ticket, sourceThread);
@@ -2199,8 +2234,8 @@ export function EmailCenter({
       productCategory: spec.productCategory ?? ticket.productCategory,
       productName: spec.productName ?? ticket.productName,
       quantity: spec.quantity ?? (ticket.aiAnalysisId ? undefined : ticket.quantity),
-      pieceWidth: spec.finishedWidth ?? ticket.pieceWidth,
-      pieceHeight: spec.finishedHeight ?? ticket.pieceHeight,
+      pieceWidth: requestedWidth,
+      pieceHeight: requestedHeight,
       sides: spec.sides ?? ticket.sides,
       colorSpec: spec.colorSpec ?? ticket.colorSpec,
       paperHint: spec.paperHint ?? ticket.paperHint,
@@ -2236,13 +2271,20 @@ export function EmailCenter({
     return result;
   }
 
-  async function analyzeSelectedTicket() {
-    if (!selectedTicket || aiTicketBusy) return;
+  async function runTicketAnalysis(
+    ticket: EmailIntakeTicket,
+    showMessage: boolean,
+    mode: "auto" | "basic" | "advanced",
+    measured?: ArtworkPreflightResult[]
+  ) {
+    if (aiTicketBusy) return;
     setAiTicketBusy(true);
     setAiTicketMessage("");
     try {
-      await analyzeTicket(selectedTicket, true, selectedTicket.aiAnalysisId ? "advanced" : "auto");
+      await analyzeTicket(ticket, showMessage, mode, measured);
     } catch (error) {
+      // The instant review has already measured the artwork and identified the
+      // sender, so a failed AI pass degrades the ticket rather than blocking it.
       setAiTicketMessage(
         error instanceof Error
           ? error.message
@@ -2253,10 +2295,72 @@ export function EmailCenter({
     }
   }
 
+  async function analyzeSelectedTicket() {
+    if (!selectedTicket) return;
+    await runTicketAnalysis(selectedTicket, true, selectedTicket.aiAnalysisId ? "advanced" : "auto");
+  }
+
+  /**
+   * Measure the artwork and identify the sender as soon as the ticket opens,
+   * without waiting for the AI pass. Opening an email should immediately show
+   * the page count, the measured size, and the customer, because all three come
+   * from the message itself. This is also the only review that runs when no AI
+   * key is configured.
+   */
+  async function instantTicketReview(ticket: EmailIntakeTicket) {
+    const review = reviewIntake(ticket, selectedTicketThread, customers);
+    const size = review.requestedSize;
+    const matched = review.matchedCustomerId
+      ? customers.find((customer) => customer.id === review.matchedCustomerId)
+      : undefined;
+
+    const requestedWidth = size?.widthInches ?? ticket.pieceWidth;
+    const requestedHeight = size?.heightInches ?? ticket.pieceHeight;
+
+    // Link an exact address match right away. A weaker domain or name-similarity
+    // hit stays a suggestion for staff to confirm.
+    const identity = matched && !ticket.customerId
+      ? { customerId: matched.id, customerName: matched.name, customerMatchKind: review.match?.kind }
+      : {};
+    const measured = size
+      ? { pieceWidth: requestedWidth, pieceHeight: requestedHeight }
+      : {};
+
+    if (Object.keys(identity).length || Object.keys(measured).length) {
+      onUpdateTicket(ticket.id, { ...identity, ...measured, updatedAt: new Date().toISOString() });
+    }
+
+    const results = await preflightTicketArtwork(ticket, selectedTicketThread, requestedWidth, requestedHeight);
+    if (!results.length) return results;
+
+    const blocking = results.filter((item) => item.severity === "warning" && !item.approved);
+    const draft = blocking.map((item) => preflightQuestion(item, size?.unit ?? "in")).join("\n\n");
+
+    onUpdateTicket(ticket.id, {
+      artworkPreflight: results,
+      preflightReviewedAt: new Date().toISOString(),
+      // Never overwrite a draft staff has already started editing.
+      ...(draft && !ticket.customerReplyDraft ? { customerReplyDraft: draft } : {}),
+      updatedAt: new Date().toISOString()
+    });
+    return results;
+  }
+
   useEffect(() => {
-    if (section !== "tickets" || !selectedTicket || selectedTicket.aiAnalysisId || aiTicketBusy) return;
-    // Job Tickets analyze themselves on first open so staff does not have to hunt for an AI button.
-    void analyzeSelectedTicket();
+    if (section !== "tickets" || !selectedTicket || aiTicketBusy) return;
+    const ticket = selectedTicket;
+    if (ticket.aiAnalysisId || ticket.preflightReviewedAt) return;
+    // Measure and identify first, then let the AI pass fill in product, paper,
+    // and finishing on top of it, reusing the measurement already taken.
+    void (async () => {
+      let measured: ArtworkPreflightResult[] | undefined;
+      try {
+        measured = await instantTicketReview(ticket);
+      } catch {
+        // A mailbox read that fails here is retried by the AI pass below.
+      }
+      await runTicketAnalysis(ticket, false, "auto", measured);
+    })();
     // Intentionally keyed to the opened Job Ticket. A failed check can still be retried manually.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, selectedTicket?.id]);
@@ -2309,7 +2413,9 @@ export function EmailCenter({
 
   function draftArtworkQuestion(result: ArtworkPreflightResult) {
     if (!selectedTicket) return;
-    const question = preflightQuestion(result);
+    // Quote the size back in the unit the customer used, so a request written in
+    // feet is not answered in inches.
+    const question = preflightQuestion(result, selectedTicketReview?.requestedSize?.unit ?? "in");
     const existing = (selectedTicket.customerReplyDraft ?? "").trim();
     updateTicket({
       status: "Missing Information",
@@ -3264,6 +3370,69 @@ Answer: `);
                       ) : null}
                     </div>
                   </header>
+
+                  {/*
+                    Everything readable from the email itself, shown before any
+                    AI pass: who sent it, the size they asked for in their own
+                    words, and what is actually in the file.
+                  */}
+                  <div className="intake-read" aria-label="What this email tells us">
+                    <div className="intake-read-item">
+                      <small>From</small>
+                      <strong dir="auto">{selectedTicketReview?.senderName || "Unknown sender"}</strong>
+                      <span dir="auto">{selectedTicketReview?.senderEmail || "No sender address"}</span>
+                    </div>
+                    <div className="intake-read-item">
+                      <small>Customer</small>
+                      {selectedTicket.customerId ? (
+                        <strong dir="auto">{selectedTicket.customerName || "Linked"}</strong>
+                      ) : selectedTicketReview?.match ? (
+                        <strong className="intake-read-pending" dir="auto">{selectedTicketReview.match.customerName}?</strong>
+                      ) : (
+                        <strong className="intake-read-missing">Not on file</strong>
+                      )}
+                      <span>
+                        {selectedTicket.customerId
+                          ? "Linked to this ticket"
+                          : selectedTicketReview?.match
+                            ? "Needs staff confirmation"
+                            : "Create the customer below"}
+                      </span>
+                    </div>
+                    <div className="intake-read-item">
+                      <small>Size requested</small>
+                      {selectedTicketReview?.requestedSize ? (
+                        <>
+                          <strong>
+                            {formatSize(
+                              selectedTicketReview.requestedSize.width,
+                              selectedTicketReview.requestedSize.height,
+                              selectedTicketReview.requestedSize.unit
+                            )}
+                          </strong>
+                          <span dir="auto">Customer wrote “{selectedTicketReview.requestedSize.raw}”</span>
+                        </>
+                      ) : (
+                        <>
+                          <strong className="intake-read-missing">Not stated</strong>
+                          <span>No finished size in the email</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="intake-read-item">
+                      <small>File</small>
+                      {selectedPrimaryPreflight?.artworkWidth && selectedPrimaryPreflight.artworkHeight ? (
+                        <strong>{cleanSize(selectedPrimaryPreflight.artworkWidth)} × {cleanSize(selectedPrimaryPreflight.artworkHeight)} in</strong>
+                      ) : (
+                        <strong className="intake-read-missing">Not measured</strong>
+                      )}
+                      <span>
+                        {selectedPrimaryPreflight?.pageCount
+                          ? `${selectedPrimaryPreflight.pageCount} ${selectedPrimaryPreflight.pageCount === 1 ? "page" : "pages"}`
+                          : "No page count yet"}
+                      </span>
+                    </div>
+                  </div>
 
                   <div className="ticket-process-rail" aria-label="Email-to-job review progress">
                     {[
