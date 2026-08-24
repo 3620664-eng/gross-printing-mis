@@ -3391,13 +3391,20 @@ Answer: `);
                       ) : (
                         <strong className="intake-read-missing">Not on file</strong>
                       )}
-                      <span>
-                        {selectedTicket.customerId
-                          ? "Linked to this ticket"
-                          : selectedTicketReview?.match
-                            ? "Needs staff confirmation"
-                            : "Create the customer below"}
-                      </span>
+                      {selectedTicket.customerId ? (
+                        <span>Linked to this ticket</span>
+                      ) : selectedTicketReview?.match ? (
+                        <span>Needs staff confirmation</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="intake-read-action"
+                          onClick={() => onCreateCustomerFromEmail(selectedTicket.id)}
+                          disabled={!selectedTicketReview?.senderEmail}
+                        >
+                          <UserRoundCheck size={13} /> Create customer
+                        </button>
+                      )}
                     </div>
                     <div className="intake-read-item">
                       <small>Size requested</small>
