@@ -148,7 +148,11 @@ check(aiPricingServer.includes('?? "gpt-5-mini"') && aiPricingServer.includes('?
 check(aiPricingServer.includes("OpenAiRequestError") && aiPricingServer.includes("retryAfterMs") && aiPricingServer.includes("maxAttempts = 3"), "AI rate-limit retry handling is incomplete.");
 check(aiPricingServer.includes("Never treat a phone number") && aiPricingServer.includes("quantityHasSourceEvidence"), "AI quantity/reference-number guardrails are incomplete.");
 check(aiSplitServer.includes("maxAttempts = 3") && aiSplitServer.includes("gpt-5-mini") && aiSplitServer.includes("Never use phone numbers"), "Multi-item AI rate-limit/quantity guardrails are incomplete.");
-check(emailCenter.includes("Job Tickets analyze themselves on first open") && emailCenter.includes("AiRateLimitClientError") && emailCenter.includes("Re-check AI"), "Automatic Job Ticket AI review / retry UI is incomplete.");
+// Opening a Job Ticket must measure the artwork and identify the sender without
+// waiting on AI, then run the AI pass reusing that measurement. Rate-limit
+// handling and the manual retry control must both survive.
+check(emailCenter.includes("instantTicketReview") && emailCenter.includes("runTicketAnalysis") && emailCenter.includes("AiRateLimitClientError") && emailCenter.includes("Re-check AI"), "Automatic Job Ticket AI review / retry UI is incomplete.");
+check(emailCenter.includes("reviewIntake") && emailCenter.includes("preflightQuestion(item, sizeUnit)"), "Email intake no longer reads the customer's stated finished size before the AI pass.");
 check(misApp.includes("function inferEmailQuantity") && misApp.includes("[phone number]") && !misApp.includes('(?:qty|quantity|print|need|order)?\\s*(\\d{2,7})'), "Deterministic email quantity parser is still accepting bare numbers.");
 
 // v0.7.0.9 business-routing / intake-identity / remembered-session gates.
@@ -256,9 +260,13 @@ check(newEstimateJob.includes('getEmailSourceAttachmentBlob(authToken, source)')
 check(newEstimateJob.includes('AI Setup') && newEstimateJob.includes('Manual Setup') && newEstimateJob.includes('Customer file') && newEstimateJob.includes('PDF / page size'), "AI/manual Job Setup or customer file-size facts are missing.");
 check(newEstimateJob.includes('positiveQuantity') && newEstimateJob.includes('presetForSize('), "Job Setup no longer guards zero quantity or size-based product inference.");
 check(misApp.includes('freshById') && misApp.includes('Stored Job Tickets can outlive the mailbox refresh'), "Saved Job Tickets do not merge refreshed mailbox attachment locators.");
-const optionOneWorkspace = read("src/app/option-one-workspace-v0736.css");
+// The release-named stylesheets (v063 through v0736) were merged into
+// workspace-refinements.css in their original cascade order. The rules this
+// guard protects are unchanged; only the file that carries them moved.
+const workspaceRefinements = read("src/app/workspace-refinements.css");
 const rootLayout = read("src/app/layout.tsx");
-check(rootLayout.includes('option-one-workspace-v0736.css') && optionOneWorkspace.includes('.job-setup-mode-tabs') && optionOneWorkspace.includes('.app-shell .panel'), "Option 1 internal MIS visual layer is missing.");
+check(rootLayout.includes('workspace-refinements.css') && workspaceRefinements.includes('.job-setup-mode-tabs') && workspaceRefinements.includes('.app-shell .panel'), "Option 1 internal MIS visual layer is missing.");
+check(rootLayout.includes('design-system.css') && read("src/app/design-system.css").includes('--gp-gold'), "The design system token layer is missing or is no longer loaded last.");
 check(newEstimateJob.includes('artwork-workbench') && newEstimateJob.includes('production-setup-modal') && newEstimateJob.includes('More press controls'), "v0.7.0.37 consolidated artwork workbench or modal press-tools launcher is missing.");
 check(impositionStudio.includes('variant?: "full" | "upload" | "production"') && impositionStudio.includes('No re-upload needed. This is the same file loaded in Job Setup.'), "Advanced press tools can regress to a duplicate artwork uploader.");
 
