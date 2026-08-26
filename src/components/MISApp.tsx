@@ -64,6 +64,7 @@ import {
 import { PRODUCT_CATEGORIES, PRODUCT_PRESETS, type ProductPreset } from "@/lib/product-catalog";
 import { matchCustomerCandidates } from "@/lib/customer-match";
 import { mergeCustomers } from "@/lib/customer-merge";
+import { paperStockRemoval, validateCatalogPrice, validatePaperStock } from "@/lib/catalog-validation";
 import { classifyBusinessEmail, emailDomain, emailHeaderAddress, emailHeaderName, isPublicEmailDomain, safeBusinessRules } from "@/lib/email-business-classifier";
 import { sanitizeLearningText } from "@/lib/learning-engine";
 import { userVisibleEmailAttachments, userVisibleThreadAttachments } from "@/lib/email-attachment-utils";
@@ -6174,21 +6175,44 @@ ${latestInbound.bodyText}`;
   }
 
   function addPaperStock(stock: Omit<PaperStock, "id">) {
+    // A bad sheet cost is the quietest mistake in the system: it silently
+    // misprices every future job on this paper rather than failing loudly.
+    const check = validatePaperStock(stock, paperStocks);
+    if (!check.canSave) {
+      setNotice(check.issues.find((issue) => issue.level === "error")!.message);
+      return "";
+    }
     const id = makeId("stock");
     setPaperStocks((current) => [{ ...stock, id }, ...current]);
-    setNotice(`${stock.name} added to Catalog and New Estimate / Job.`);
+    const warning = check.issues.find((issue) => issue.level === "warning");
+    setNotice(warning ? `${stock.name} added. ${warning.message}` : `${stock.name} added to Catalog and New Estimate / Job.`);
     return id;
   }
 
   function updatePaperStock(stockId: string, updates: Omit<PaperStock, "id">) {
+    const check = validatePaperStock(updates, paperStocks, stockId);
+    if (!check.canSave) {
+      setNotice(check.issues.find((issue) => issue.level === "error")!.message);
+      return;
+    }
     setPaperStocks((current) => current.map((stock) => (stock.id === stockId ? { ...stock, ...updates } : stock)));
-    setNotice(`${updates.name} updated in paper inventory.`);
+    const warning = check.issues.find((issue) => issue.level === "warning");
+    setNotice(warning ? `${updates.name} updated. ${warning.message}` : `${updates.name} updated in paper inventory.`);
   }
 
   function removePaperStock(stockId: string) {
     const removed = paperStocks.find((stock) => stock.id === stockId);
+    if (!removed) return;
+    // Jobs record their paper by name. Removing a stock that jobs reference
+    // leaves them describing paper the shop no longer lists, and re-pricing or
+    // reprinting them stops working.
+    const removal = paperStockRemoval(removed, jobs);
+    if (!removal.canRemove) {
+      setNotice(removal.message);
+      return;
+    }
     setPaperStocks((current) => current.filter((stock) => stock.id !== stockId));
-    setNotice(`${removed?.name ?? "Paper stock"} removed from active paper inventory.`);
+    setNotice(`${removed.name} removed from active paper inventory.`);
   }
 
   function addProductPreset(preset: Omit<ProductPreset, "id">) {
@@ -6239,13 +6263,25 @@ ${latestInbound.bodyText}`;
   }
 
   function addCatalogPrice(price: Omit<CatalogPrice, "id">) {
+    const check = validateCatalogPrice(price, catalogPrices);
+    if (!check.canSave) {
+      setNotice(check.issues.find((issue) => issue.level === "error")!.message);
+      return;
+    }
     setCatalogPrices((current) => [{ ...price, id: makeId("cat") }, ...current]);
-    setNotice(`${price.name} added to pricing catalog.`);
+    const warning = check.issues.find((issue) => issue.level === "warning");
+    setNotice(warning ? `${price.name} added. ${warning.message}` : `${price.name} added to pricing catalog.`);
   }
 
   function updateCatalogPrice(priceId: string, updates: Omit<CatalogPrice, "id">) {
+    const check = validateCatalogPrice(updates, catalogPrices, priceId);
+    if (!check.canSave) {
+      setNotice(check.issues.find((issue) => issue.level === "error")!.message);
+      return;
+    }
     setCatalogPrices((current) => current.map((price) => (price.id === priceId ? { ...price, ...updates } : price)));
-    setNotice(`${updates.name} updated in pricing catalog.`);
+    const warning = check.issues.find((issue) => issue.level === "warning");
+    setNotice(warning ? `${updates.name} updated. ${warning.message}` : `${updates.name} updated in pricing catalog.`);
   }
 
   function removeCatalogPrice(priceId: string) {

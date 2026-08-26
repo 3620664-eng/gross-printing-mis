@@ -408,6 +408,31 @@ check(
 );
 
 
+
+// --- Phase 4c: catalog numbers ---
+
+// Paper costs and catalog rates are the quietest place for a mistake to live: a
+// wrong sheet cost silently misprices every future job rather than failing.
+const catalogValidationSource = read("src/lib/catalog-validation.ts");
+// Looks for the calls, not the identifier: an unused import would otherwise
+// satisfy `includes` while the validation had been ripped out of the handlers.
+check(
+  /validatePaperStock\(\s*stock\s*,/.test(misApp) &&
+  /validatePaperStock\(\s*updates\s*,/.test(misApp) &&
+  /validateCatalogPrice\(\s*price\s*,/.test(misApp) &&
+  /validateCatalogPrice\(\s*updates\s*,/.test(misApp) &&
+  catalogValidationSource.includes("sellPerSheet < draft.costPerSheet"),
+  "Paper and catalog rates are being saved without validation."
+);
+
+// Jobs record their paper by name, so removing a stock that jobs reference
+// leaves those jobs describing paper the shop no longer lists.
+check(
+  /paperStockRemoval\(\s*removed\s*,\s*jobs\s*\)/.test(misApp) &&
+  catalogValidationSource.includes("canRemove"),
+  "Paper stock can be deleted while jobs still reference it."
+);
+
 if (failures.length) {
   console.error("Gross Printing MIS security checks failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));
