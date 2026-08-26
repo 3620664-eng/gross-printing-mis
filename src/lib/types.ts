@@ -100,6 +100,21 @@ export type CustomerNotificationPath = "quote_then_status" | "direct_job" | "man
 
 export type ArtworkPreflightSeverity = "ok" | "minor" | "warning" | "unsupported";
 
+/**
+ * How much attention one printability finding needs. Separate from
+ * ArtworkPreflightSeverity on purpose: severity decides whether a ticket is
+ * blocked from converting, while a finding is advice staff reads and acts on.
+ */
+export type ArtworkFindingLevel = "ok" | "caution" | "warning";
+
+export interface ArtworkFinding {
+  /** Stable rule identifier, e.g. "bleed" or "resolution". */
+  id: string;
+  level: ArtworkFindingLevel;
+  title: string;
+  detail: string;
+}
+
 export interface ArtworkPreflightResult {
   attachmentId: string;
   filename: string;
@@ -118,6 +133,18 @@ export interface ArtworkPreflightResult {
   rotationSuggested?: boolean;
   proportionalWidthOption?: { width: number; height: number };
   proportionalHeightOption?: { width: number; height: number };
+  /**
+   * Printability advice: bleed, resolution, colour space, page consistency.
+   * Advisory only — these never change `severity`, so a new finding cannot
+   * block a job that would previously have gone straight through.
+   */
+  findings?: ArtworkFinding[];
+  /** Every page's size in inches, for multi-page artwork. */
+  pageSizes?: Array<{ width: number; height: number }>;
+  /** Smallest bleed past the trim, in inches. Absent when the file declares no trim box. */
+  bleedInches?: number;
+  /** Colour space as read from the file, e.g. "srgb" or "cmyk". */
+  colorSpace?: string;
   questions: string[];
   approved?: boolean;
   approvedAt?: string;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, type PDFPage } from "pdf-lib";
+import { buildArtworkFindings, type ArtworkMeasurements } from "@/lib/artwork-preflight";
 import {
   emailServerConfigured,
   errorResponse,
@@ -66,6 +67,35 @@ function proportionalOptions(requestedWidth: number, requestedHeight: number, ar
   };
 }
 
+/** PDF user space is 72 units to the inch. */
+const POINTS_PER_INCH = 72;
+
+/**
+ * Smallest inset between the media box and the declared trim box, in inches —
+ * the bleed the designer actually built in.
+ *
+ * `page.getTrimBox()` silently returns the media box when a page declares no
+ * TrimBox, which would make every flush file look deliberately trimmed. The raw
+ * dictionary is checked first so a file that states no trim intent reports no
+ * bleed measurement at all, rather than a misleading zero.
+ */
+function measureBleed(page: PDFPage): number | undefined {
+  if (!page.node.get(PDFName.of("TrimBox"))) return undefined;
+
+  const media = page.getMediaBox();
+  const trim = page.getTrimBox();
+  const left = trim.x - media.x;
+  const bottom = trim.y - media.y;
+  const right = (media.x + media.width) - (trim.x + trim.width);
+  const top = (media.y + media.height) - (trim.y + trim.height);
+
+  const smallest = Math.min(left, right, top, bottom);
+  if (!Number.isFinite(smallest)) return undefined;
+  // A negative inset means the trim box sits outside the media box, which is a
+  // malformed file rather than a bleed measurement.
+  return smallest < 0 ? 0 : smallest / POINTS_PER_INCH;
+}
+
 function resultBase(input: Input): Pick<ArtworkPreflightResult, "attachmentId" | "filename" | "mimeType" | "requestedWidth" | "requestedHeight"> {
   return {
     attachmentId: input.attachmentId ?? "",
@@ -83,10 +113,36 @@ function evaluate(input: Input, dimensions: {
   heightPixels?: number;
   dpi?: number;
   pageCount?: number;
+  pageSizes?: Array<{ width: number; height: number }>;
+  bleedInches?: number;
+  colorSpace?: string;
 }): ArtworkPreflightResult {
   const requestedWidth = positive(input.requestedWidth);
   const requestedHeight = positive(input.requestedHeight);
   const base = resultBase(input);
+
+  /**
+   * Printability advice, carried alongside the size verdict. These never feed
+   * into `severity`, so a bleed or colour warning cannot block a ticket that
+   * would otherwise convert.
+   */
+  const measurements: ArtworkMeasurements = {
+    requestedWidth,
+    requestedHeight,
+    artworkWidth: dimensions.width,
+    artworkHeight: dimensions.height,
+    pixelWidth: dimensions.widthPixels,
+    pixelHeight: dimensions.heightPixels,
+    pageSizes: dimensions.pageSizes,
+    bleedInches: dimensions.bleedInches,
+    colorSpace: dimensions.colorSpace
+  };
+  const extra = {
+    findings: buildArtworkFindings(measurements),
+    pageSizes: dimensions.pageSizes,
+    bleedInches: dimensions.bleedInches,
+    colorSpace: dimensions.colorSpace
+  };
   const mismatch = requestedWidth && requestedHeight
     ? mismatchPercent(requestedWidth, requestedHeight, dimensions.width, dimensions.height)
     : undefined;
@@ -104,6 +160,7 @@ function evaluate(input: Input, dimensions: {
       artworkHeightPixels: dimensions.heightPixels,
       dpi: dimensions.dpi,
       pageCount: dimensions.pageCount,
+      ...extra,
       severity: "minor",
       message: "Artwork was measured, but the requested finished size is not confirmed yet.",
       questions: ["What finished width and height should this artwork be produced at?"]
@@ -124,6 +181,7 @@ function evaluate(input: Input, dimensions: {
       dpi: dimensions.dpi,
       pageCount: dimensions.pageCount,
       aspectMismatchPercent: rounded(difference, 2),
+      ...extra,
       severity: "ok",
       message: exactPhysical || physicalRotated
         ? "Artwork size and proportion match the requested finished size."
@@ -142,6 +200,7 @@ function evaluate(input: Input, dimensions: {
       dpi: dimensions.dpi,
       pageCount: dimensions.pageCount,
       aspectMismatchPercent: rounded(difference, 2),
+      ...extra,
       severity: "minor",
       message: "Artwork proportion is slightly different from the requested finished size. Staff should confirm how to handle the small difference.",
       questions: ["Should we crop slightly, fit the complete artwork, or use the closest proportional finished size?"]
@@ -157,6 +216,7 @@ function evaluate(input: Input, dimensions: {
     dpi: dimensions.dpi,
     pageCount: dimensions.pageCount,
     aspectMismatchPercent: rounded(difference, 2),
+    ...extra,
     severity: "warning",
     message: "Artwork proportion does not match the requested finished size. Cropping, extra space, or a different finished size will be needed.",
     questions: ["The artwork proportion does not match the requested size. Should we crop to fill, fit the complete artwork with extra space, or use the closest proportional size?"]
@@ -198,10 +258,20 @@ export async function POST(request: NextRequest) {
       const pages = pdf.getPages();
       const first = pages[0];
       if (!first) throw new Error("The PDF does not contain a printable page.");
+      // Measure every page, not just the first: a cover at one size and an
+      // interior at another changes how the job is imposed.
+      const pageSizes = pages.map((page) => ({
+        width: rounded(page.getWidth() / POINTS_PER_INCH),
+        height: rounded(page.getHeight() / POINTS_PER_INCH)
+      }));
       const result = evaluate(body, {
-        width: first.getWidth() / 72,
-        height: first.getHeight() / 72,
-        pageCount: pages.length
+        width: first.getWidth() / POINTS_PER_INCH,
+        height: first.getHeight() / POINTS_PER_INCH,
+        pageCount: pages.length,
+        pageSizes,
+        bleedInches: measureBleed(first)
+        // Colour space is deliberately not reported for PDFs. It varies per
+        // object inside the file, so a single value would be a guess.
       });
       return NextResponse.json({ ok: true, result });
     }
@@ -217,7 +287,10 @@ export async function POST(request: NextRequest) {
         height: physicalHeight,
         widthPixels: metadata.width,
         heightPixels: metadata.height,
-        dpi
+        dpi,
+        // A raster file has one colour space for the whole image, so unlike a
+        // PDF this can be reported without guessing.
+        colorSpace: metadata.space
       });
       if (!dpi) {
         result.artworkWidth = undefined;

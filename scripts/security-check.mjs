@@ -153,6 +153,20 @@ check(aiSplitServer.includes("maxAttempts = 3") && aiSplitServer.includes("gpt-5
 // handling and the manual retry control must both survive.
 check(emailCenter.includes("instantTicketReview") && emailCenter.includes("runTicketAnalysis") && emailCenter.includes("AiRateLimitClientError") && emailCenter.includes("Re-check AI"), "Automatic Job Ticket AI review / retry UI is incomplete.");
 check(emailCenter.includes("reviewIntake") && emailCenter.includes("preflightQuestion(item, sizeUnit)"), "Email intake no longer reads the customer's stated finished size before the AI pass.");
+
+// Printability findings are advice, not a gate. `severity` alone decides whether
+// a ticket is blocked from converting; if a finding level ever feeds into it, a
+// missing bleed or an RGB file would wedge jobs that used to go straight
+// through. The route must keep the two apart.
+const preflightRoute = read("src/app/api/email/preflight/route.ts");
+const artworkPreflight = read("src/lib/artwork-preflight.ts");
+check(
+  preflightRoute.includes("buildArtworkFindings") &&
+  artworkPreflight.includes("REQUIRED_BLEED_INCHES") &&
+  !/severity\s*[:=][^;\n]*finding/i.test(preflightRoute),
+  "Artwork findings are missing, or a finding level now feeds the blocking severity."
+);
+check(preflightRoute.includes("measureBleed") && preflightRoute.includes('PDFName.of("TrimBox")'), "Bleed is no longer measured from the PDF's declared trim box.");
 check(misApp.includes("function inferEmailQuantity") && misApp.includes("[phone number]") && !misApp.includes('(?:qty|quantity|print|need|order)?\\s*(\\d{2,7})'), "Deterministic email quantity parser is still accepting bare numbers.");
 
 // v0.7.0.9 business-routing / intake-identity / remembered-session gates.

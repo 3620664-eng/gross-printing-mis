@@ -3660,7 +3660,27 @@ Answer: `);
                               {result.pageCount ? <span><small>Pages</small><strong>{result.pageCount}</strong></span> : null}
                               {result.dpi ? <span><small>DPI</small><strong>{Math.round(result.dpi)}</strong></span> : null}
                               {Number.isFinite(result.aspectMismatchPercent) ? <span><small>Ratio difference</small><strong>{cleanSize(result.aspectMismatchPercent)}%</strong></span> : null}
+                              {result.bleedInches !== undefined ? <span><small>Bleed</small><strong>{cleanSize(result.bleedInches)} in</strong></span> : null}
+                              {result.colorSpace ? <span><small>Colour</small><strong>{result.colorSpace.toUpperCase()}</strong></span> : null}
                             </div>
+                            {/*
+                              Printability advice. Separate from the size verdict
+                              above: these never block the ticket, they tell staff
+                              what will cost a reprint if nobody asks about it.
+                            */}
+                            {result.findings?.length ? (
+                              <ul className="artwork-findings">
+                                {result.findings.map((finding) => (
+                                  <li className={`artwork-finding ${finding.level}`} key={finding.id}>
+                                    <span className="artwork-finding-dot" aria-hidden="true" />
+                                    <span>
+                                      <strong>{finding.title}</strong>
+                                      <small>{finding.detail}</small>
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
                             {result.severity === "warning" && !result.approved ? (
                               <div className="email-artwork-preflight-actions">
                                 <button className="secondary-button" type="button" onClick={() => draftArtworkQuestion(result)}><Reply size={15} /> Ask customer</button>

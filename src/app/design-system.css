@@ -199,3 +199,82 @@
   outline: none;
   box-shadow: var(--gp-focus);
 }
+
+/* ============================================================
+   Artwork findings
+   ============================================================
+   Printability advice attached to a preflight result: bleed, resolution,
+   colour space, page consistency. Ordered worst-first by the rules that
+   produce them, so the eye lands on the problems before the reassurances.
+
+   Deliberately quieter than the size verdict above it. A missing bleed is
+   worth knowing and worth asking about; it is not a reason to stop the job,
+   and the styling should not imply that it is.
+*/
+
+.artwork-findings {
+  display: grid;
+  gap: var(--gp-space-1);
+  margin: var(--gp-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artwork-finding {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--gp-space-2);
+  padding: var(--gp-space-2) var(--gp-space-3);
+  border: 1px solid var(--gp-line);
+  border-left: 3px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+}
+
+.artwork-finding-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--gp-line-strong);
+}
+
+.artwork-finding strong {
+  display: block;
+  font-size: var(--gp-text-base);
+}
+
+.artwork-finding small {
+  display: block;
+  margin-top: 2px;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-sm);
+  line-height: 1.45;
+}
+
+/* Will cost a reprint if it goes unasked. */
+.artwork-finding.warning {
+  border-left-color: var(--gp-red);
+}
+
+.artwork-finding.warning .artwork-finding-dot {
+  background: var(--gp-red);
+}
+
+/* Worth confirming with the customer, but not wrong on its own. */
+.artwork-finding.caution {
+  border-left-color: var(--gp-amber);
+}
+
+.artwork-finding.caution .artwork-finding-dot {
+  background: var(--gp-amber);
+}
+
+/* Checked and fine. Kept visible so staff can see what was actually verified. */
+.artwork-finding.ok {
+  border-left-color: var(--gp-green);
+}
+
+.artwork-finding.ok .artwork-finding-dot {
+  background: var(--gp-green);
+}
