@@ -18,6 +18,7 @@ import {
   WifiOff
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { ROLE_PROFILES } from "@/lib/staff-roles";
 
 type ManagedRole = "admin" | "front_desk" | "prepress" | "press" | "finishing";
 type AdminTab = "overview" | "users" | "sessions" | "activity";
@@ -107,13 +108,18 @@ interface AdminCenterProps {
   currentUserEmail?: string;
 }
 
-const roleOptions: Array<{ value: ManagedRole; label: string; description: string }> = [
-  { value: "admin", label: "Administrator", description: "Full backend, customers, pricing, users, and settings" },
-  { value: "front_desk", label: "Office / Estimator", description: "Workflow, new quotes, and quote records" },
-  { value: "prepress", label: "Prepress Worker", description: "Workflow, job files, notes, and production movement" },
-  { value: "press", label: "Press Worker", description: "Workflow, job instructions, notes, and production movement" },
-  { value: "finishing", label: "Finishing Worker", description: "Workflow, finishing notes, and production movement" }
-];
+/**
+ * Built from ROLE_PROFILES so the Admin screen and the navigation cannot
+ * disagree about what a role can reach. They used to state it separately, with
+ * nothing keeping the prose honest.
+ */
+const roleOptions: Array<{ value: ManagedRole; label: string; description: string; seesMoney: boolean }> =
+  ROLE_PROFILES.map((profile) => ({
+    value: profile.role as ManagedRole,
+    label: profile.label,
+    description: profile.summary,
+    seesMoney: profile.seesMoney
+  }));
 
 function roleLabel(role: ManagedRole) {
   return roleOptions.find((option) => option.value === role)?.label ?? role;
@@ -423,7 +429,16 @@ export function AdminCenter({ authToken, authEnabled, currentUserId, currentUser
                   </div>
                   <div className="admin-user-fields">
                     <label><span>Display name</span><input value={user.displayName} onChange={(event) => updateUserDraft(user.userId, { displayName: event.target.value })} /></label>
-                    <label><span>Role</span><select value={user.role} disabled={user.isOwner || user.isCurrentUser} onChange={(event) => updateUserDraft(user.userId, { role: event.target.value as ManagedRole })}>{roleOptions.map((role) => <option value={role.value} key={role.value}>{role.label}</option>)}</select></label>
+                    <label><span>Role</span><select value={user.role} disabled={user.isOwner || user.isCurrentUser} onChange={(event) => updateUserDraft(user.userId, { role: event.target.value as ManagedRole })}>{roleOptions.map((role) => <option value={role.value} key={role.value}>{role.label}</option>)}</select>
+                      {/* What this role actually grants, so a change is made with its
+                          consequence in view rather than discovered afterwards. */}
+                      <small className={`admin-role-effect ${roleOptions.find((role) => role.value === user.role)?.seesMoney ? "sees-money" : ""}`}>
+                        {roleOptions.find((role) => role.value === user.role)?.description}
+                        {roleOptions.find((role) => role.value === user.role)?.seesMoney
+                          ? " Can see pricing and invoices."
+                          : " Cannot see pricing or invoices."}
+                      </small>
+                    </label>
                     <label><span>Title</span><input value={user.title ?? ""} onChange={(event) => updateUserDraft(user.userId, { title: event.target.value })} /></label>
                     <label><span>Department</span><input value={user.department ?? ""} onChange={(event) => updateUserDraft(user.userId, { department: event.target.value })} /></label>
                   </div>

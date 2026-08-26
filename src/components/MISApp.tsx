@@ -65,6 +65,7 @@ import { PRODUCT_CATEGORIES, PRODUCT_PRESETS, type ProductPreset } from "@/lib/p
 import { matchCustomerCandidates } from "@/lib/customer-match";
 import { mergeCustomers } from "@/lib/customer-merge";
 import { paperStockRemoval, validateCatalogPrice, validatePaperStock } from "@/lib/catalog-validation";
+import { ALL_ROLES, OFFICE_ROLES } from "@/lib/staff-roles";
 import { classifyBusinessEmail, emailDomain, emailHeaderAddress, emailHeaderName, isPublicEmailDomain, safeBusinessRules } from "@/lib/email-business-classifier";
 import { sanitizeLearningText } from "@/lib/learning-engine";
 import { userVisibleEmailAttachments, userVisibleThreadAttachments } from "@/lib/email-attachment-utils";
@@ -132,8 +133,9 @@ type AppRole = "admin" | "front_desk" | "prepress" | "press" | "finishing";
 
 type AuthSetupMode = "invite" | "recovery";
 
-const ALL_ROLES: AppRole[] = ["admin", "front_desk", "prepress", "press", "finishing"];
-const OFFICE_ROLES: AppRole[] = ["admin", "front_desk"];
+// Defined in src/lib/staff-roles.ts so the Admin screen's description of a role
+// and the navigation that enforces it come from the same values.
+
 
 /**
  * Navigation follows the path a job actually takes through the shop: it arrives

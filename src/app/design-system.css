@@ -699,3 +699,24 @@ body.workflow-drag-active {
   justify-content: flex-end;
   flex-wrap: wrap;
 }
+
+/* ============================================================
+   Role effect
+   ============================================================
+   What a role actually grants, shown beside the selector that sets it. The
+   consequence that matters most in this shop is whether the person can see
+   what a job is worth, so that sentence is always present — stated either way
+   rather than only when the answer is no.
+*/
+
+.admin-role-effect {
+  display: block;
+  margin-top: var(--gp-space-1);
+  color: var(--gp-muted);
+  font-size: var(--gp-text-sm);
+  line-height: 1.4;
+}
+
+.admin-role-effect.sees-money {
+  color: var(--gp-amber);
+}

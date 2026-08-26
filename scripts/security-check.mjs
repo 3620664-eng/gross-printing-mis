@@ -433,6 +433,35 @@ check(
   "Paper stock can be deleted while jobs still reference it."
 );
 
+
+// --- Phase 4d: staff roles ---
+
+// The Admin screen's description of a role and the navigation that enforces it
+// used to be written separately, with nothing keeping the prose honest. Both
+// now come from ROLE_PROFILES.
+const staffRoles = read("src/lib/staff-roles.ts");
+const adminCenter = read("src/components/AdminCenter.tsx");
+check(
+  adminCenter.includes("ROLE_PROFILES") &&
+  /import \{[^}]*OFFICE_ROLES[^}]*\} from "@\/lib\/staff-roles"/.test(misApp),
+  "Role descriptions and the navigation no longer share one definition."
+);
+// Production roles must never be listed as office roles: the sidebar and the
+// server's field stripping both key off this list.
+check(
+  /OFFICE_ROLES:\s*AppRole\[\]\s*=\s*\["admin",\s*"front_desk"\]/.test(staffRoles) &&
+  staffRoles.includes('PRODUCTION_ROLES') &&
+  !/PRODUCTION_ROLES[^=]*=\s*\[[^\]]*admin/.test(staffRoles),
+  "The office/production role split has been altered."
+);
+// The client-safe role union must match the server's AppRole.
+const gmailServerRoles = gmailServer.match(/export type AppRole = ([^;]+);/)?.[1]?.trim();
+const clientRoles = staffRoles.match(/export type StaffRole = ([^;]+);/)?.[1]?.trim();
+check(
+  Boolean(gmailServerRoles) && gmailServerRoles === clientRoles,
+  "The client role list has drifted from the server's AppRole."
+);
+
 if (failures.length) {
   console.error("Gross Printing MIS security checks failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));
