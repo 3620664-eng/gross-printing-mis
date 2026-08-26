@@ -63,6 +63,7 @@ import {
 } from "@/lib/demo-data";
 import { PRODUCT_CATEGORIES, PRODUCT_PRESETS, type ProductPreset } from "@/lib/product-catalog";
 import { matchCustomerCandidates } from "@/lib/customer-match";
+import { mergeCustomers } from "@/lib/customer-merge";
 import { classifyBusinessEmail, emailDomain, emailHeaderAddress, emailHeaderName, isPublicEmailDomain, safeBusinessRules } from "@/lib/email-business-classifier";
 import { sanitizeLearningText } from "@/lib/learning-engine";
 import { userVisibleEmailAttachments, userVisibleThreadAttachments } from "@/lib/email-attachment-utils";
@@ -6123,6 +6124,48 @@ ${latestInbound.bodyText}`;
     setNotice("Customer archived.");
   }
 
+  /**
+   * Combine two records for the same customer.
+   *
+   * Everything the duplicate owns moves to the survivor, then the duplicate is
+   * archived rather than deleted — a merge is easy to run backwards, and the
+   * shop needs to be able to unwind one without having lost the record.
+   *
+   * The move itself is computed by `mergeCustomers`, the same function that
+   * produced the preview staff confirmed, so what was promised is what runs.
+   */
+  function mergeCustomerRecords(loserId: string, survivorId: string) {
+    if (loserId === survivorId) return;
+    const survivor = customers.find((customer) => customer.id === survivorId);
+    const loser = customers.find((customer) => customer.id === loserId);
+    if (!survivor || !loser) return;
+
+    const result = mergeCustomers(
+      { orders, jobs, quotes, invoices, files: uploadedFiles, emailThreads, emailIntakeTickets, emailLogs },
+      survivor,
+      loser
+    );
+
+    setOrders(result.collections.orders);
+    setJobs(result.collections.jobs);
+    setQuotes(result.collections.quotes);
+    setInvoices(result.collections.invoices);
+    setUploadedFiles(result.collections.files);
+    setEmailThreads(result.collections.emailThreads);
+    setEmailIntakeTickets(result.collections.emailIntakeTickets);
+    setEmailLogs(result.collections.emailLogs);
+    setCustomers((current) => current.map((customer) => {
+      if (customer.id === survivorId) return result.survivor;
+      if (customer.id === loserId) return result.loser;
+      return customer;
+    }));
+
+    setFocusedCustomerId(survivorId);
+    setNotice(
+      `${loser.name} merged into ${survivor.name}. ${result.counts.total} record${result.counts.total === 1 ? "" : "s"} moved; the duplicate is archived, not deleted.`
+    );
+  }
+
   function restoreCustomer(customerId: string) {
     setCustomers((current) =>
       current.map((customer) => (customer.id === customerId ? { ...customer, archived: false, deletedAt: undefined } : customer))
@@ -7524,6 +7567,7 @@ ${latestInbound.bodyText}`;
         onAddCustomer={addCustomer}
         onUpdateCustomer={updateCustomer}
         onArchiveCustomer={archiveCustomer}
+        onMergeCustomers={currentRole === "admin" ? mergeCustomerRecords : undefined}
         onImportCustomers={importCustomers}
         onOpenFiles={(customerId) => {
           setFocusedCustomerId(customerId);

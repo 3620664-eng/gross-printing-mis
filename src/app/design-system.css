@@ -633,3 +633,69 @@ body.workflow-drag-active {
   justify-content: flex-end;
   flex-wrap: wrap;
 }
+
+/* ============================================================
+   Customer merge
+   ============================================================
+   Combining two records for one customer. Everything the duplicate owns moves
+   to the record staff picks, and the duplicate is archived rather than deleted
+   so a merge run the wrong way round can be undone.
+
+   Styled as a deliberate, slightly heavy control. This is not a thing to click
+   past on the way to something else.
+*/
+
+.customer-merge {
+  display: grid;
+  gap: var(--gp-space-2);
+  padding: var(--gp-space-3);
+  border: 1px solid var(--gp-line);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface-muted);
+}
+
+.customer-merge > label {
+  display: grid;
+  gap: var(--gp-space-1);
+}
+
+.customer-merge > label > span {
+  color: var(--gp-muted);
+  font-size: var(--gp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.customer-merge select {
+  min-height: 36px;
+  padding: 0 var(--gp-space-2);
+  border: 1px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+  color: var(--gp-ink);
+  font-size: var(--gp-text-base);
+}
+
+/* What will actually happen, in the shop's own terms, before it happens. */
+.customer-merge-confirm {
+  display: grid;
+  gap: var(--gp-space-2);
+  padding: var(--gp-space-3);
+  border: 1px solid var(--gp-amber);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-amber-soft);
+}
+
+.customer-merge-confirm p {
+  margin: 0;
+  color: var(--gp-amber);
+  font-size: var(--gp-text-base);
+  line-height: 1.5;
+}
+
+.customer-merge-confirm > div {
+  display: flex;
+  gap: var(--gp-space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}

@@ -19,6 +19,8 @@ interface CustomerPortalProps {
   onAddCustomer: (customer: Omit<Customer, "id">) => string;
   onUpdateCustomer: (customerId: string, updates: Partial<Omit<Customer, "id">>) => void;
   onArchiveCustomer: (customerId: string) => void;
+  /** Move everything from the first customer onto the second, then archive the first. */
+  onMergeCustomers?: (loserId: string, survivorId: string) => void;
   onImportCustomers: (rows: Record<string, unknown>[]) => void;
   onOpenFiles: (customerId: string) => void;
   onOpenFile?: (fileId: string) => void;
@@ -39,6 +41,7 @@ export function CustomerPortal({
   onAddCustomer,
   onUpdateCustomer,
   onArchiveCustomer,
+  onMergeCustomers,
   onImportCustomers,
   onOpenFiles,
   onOpenFile,
@@ -55,6 +58,7 @@ export function CustomerPortal({
   const [customerSection, setCustomerSection] = useState<"overview" | "jobs" | "files" | "account">("overview");
   const [showAdd, setShowAdd] = useState(false);
   const [archiveConfirm, setArchiveConfirm] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState("");
   const [newContact, setNewContact] = useState({ name: "", email: "", phone: "", department: "" });
   const selected = customers.find((customer) => customer.id === selectedId);
   const history = useMemo(() => {
@@ -86,6 +90,7 @@ export function CustomerPortal({
 
   useEffect(() => {
     setArchiveConfirm(false);
+    setMergeTargetId("");
     setCustomerSection("overview");
     setNewContact({ name: "", email: "", phone: "", department: "" });
   }, [selectedId]);
@@ -340,6 +345,49 @@ export function CustomerPortal({
 
           {canBulkManage ? (
             <div className="button-row customer-archive-row">
+              {/*
+                Merging is hard to reverse, so nothing happens until staff has
+                named the record that survives and read what will move. The
+                duplicate is archived, never deleted.
+              */}
+              {onMergeCustomers && visibleCustomers.length > 1 ? (
+                <div className="customer-merge">
+                  <label>
+                    <span>Merge this customer into</span>
+                    <select value={mergeTargetId} onChange={(event) => setMergeTargetId(event.target.value)}>
+                      <option value="">Choose the customer to keep…</option>
+                      {visibleCustomers
+                        .filter((customer) => customer.id !== selected.id)
+                        .map((customer) => <option value={customer.id} key={customer.id}>{customer.name}</option>)}
+                    </select>
+                  </label>
+                  {mergeTargetId ? (
+                    <div className="customer-merge-confirm">
+                      <p>
+                        <strong>{history.jobs.length + history.quotes.length + history.invoices.length + history.files.length}</strong>
+                        {" "}record(s) move from <strong>{selected.name}</strong> to{" "}
+                        <strong>{visibleCustomers.find((customer) => customer.id === mergeTargetId)?.name}</strong>,
+                        along with its email and contacts. <strong>{selected.name}</strong> is then archived — not deleted,
+                        so this can be undone.
+                      </p>
+                      <div>
+                        <button className="secondary-button" type="button" onClick={() => setMergeTargetId("")}>Cancel</button>
+                        <button
+                          className="primary-button"
+                          type="button"
+                          onClick={() => {
+                            onMergeCustomers(selected.id, mergeTargetId);
+                            setSelectedId(mergeTargetId);
+                            setMergeTargetId("");
+                          }}
+                        >
+                          Merge into {visibleCustomers.find((customer) => customer.id === mergeTargetId)?.name}
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               {archiveConfirm ? <><span className="muted">Archive this customer?</span><button className="icon-button text-button" type="button" onClick={() => setArchiveConfirm(false)}>Cancel</button><button className="icon-button text-button danger" type="button" onClick={() => { onArchiveCustomer(selected.id); setSelectedId(""); setArchiveConfirm(false); }}><Archive size={16} />Yes, archive</button></> : <button className="icon-button text-button" type="button" onClick={() => setArchiveConfirm(true)}><Archive size={16} />Archive customer</button>}
             </div>
           ) : null}

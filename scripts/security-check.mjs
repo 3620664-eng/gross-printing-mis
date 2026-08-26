@@ -377,6 +377,37 @@ for (const file of clientFiles) {
   check(!contents.includes("SUPABASE_SECRET_KEY") && !contents.includes("SUPABASE_SERVICE_ROLE_KEY"), `${file} references a server secret.`);
 }
 
+
+// --- Phase 4a/4b: customer records ---
+
+// One form, one set of rules, for every place a customer can be created.
+const customerValidationSource = read("src/lib/customer-validation.ts");
+const customerMergeSource = read("src/lib/customer-merge.ts");
+check(
+  exists("src/components/CustomerForm.tsx") &&
+  customerPortal.includes("<CustomerForm") &&
+  customerValidationSource.includes("validateCustomer"),
+  "Customer creation no longer goes through the shared, validated form."
+);
+
+// Open balance and lifetime spend are different numbers. Writing one from the
+// other erases a customer's history with no undo, which is exactly what this
+// screen used to do.
+check(
+  !/totalSpend:\s*openBalance/.test(customerPortal),
+  "The customer balance field is writing over lifetime spend again."
+);
+
+// A merge must archive the duplicate, never delete it: merges get run the wrong
+// way round, and the shop has to be able to unwind one.
+check(
+  customerMergeSource.includes("archived: true") &&
+  !/deletedAt:\s*(now|nowIso|new Date)/.test(customerMergeSource) &&
+  customerPortal.includes("customer-merge-confirm"),
+  "Customer merge deletes the duplicate, or acts without confirmation."
+);
+
+
 if (failures.length) {
   console.error("Gross Printing MIS security checks failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));
