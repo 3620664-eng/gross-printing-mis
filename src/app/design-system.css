@@ -278,3 +278,135 @@
 .artwork-finding.ok .artwork-finding-dot {
   background: var(--gp-green);
 }
+
+/* ============================================================
+   Artwork workbench
+   ============================================================
+   The customer's file and the size they asked for, side by side. The PDF used
+   to open in a modal over the ticket, which meant staff read the request,
+   covered it with the artwork, then closed the artwork to check the request
+   again. Everything needed to answer "is this file right for this job" now sits
+   on one screen.
+*/
+
+.artwork-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: var(--gp-space-3);
+  margin-top: var(--gp-space-3);
+  padding: var(--gp-space-3);
+  border: 1px solid var(--gp-line);
+  border-radius: var(--gp-radius-md);
+  background: var(--gp-surface-muted);
+}
+
+.artwork-workbench-viewer {
+  display: grid;
+  place-items: center;
+  min-height: 320px;
+  max-height: 620px;
+  overflow: auto;
+  padding: var(--gp-space-2);
+  border: 1px solid var(--gp-line);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+}
+
+.artwork-workbench-viewer img {
+  max-width: 100%;
+  height: auto;
+}
+
+.artwork-workbench-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gp-space-2);
+  min-width: 0;
+}
+
+.artwork-workbench-panel > h4 {
+  margin: 0;
+  font-size: var(--gp-text-md);
+}
+
+.artwork-workbench-panel > p {
+  margin: 0;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-sm);
+  line-height: 1.45;
+}
+
+/* Width, height, and the button that re-measures against them. */
+.artwork-size-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gp-space-2);
+  align-items: end;
+}
+
+.artwork-size-fields label {
+  display: grid;
+  gap: var(--gp-space-1);
+  min-width: 0;
+}
+
+.artwork-size-fields label span {
+  color: var(--gp-muted);
+  font-size: var(--gp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.artwork-size-fields input {
+  min-height: 36px;
+  padding: 0 var(--gp-space-2);
+  border: 1px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+  color: var(--gp-ink);
+  font-size: var(--gp-text-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.artwork-size-fields input:focus-visible {
+  outline: none;
+  border-color: var(--gp-gold);
+  box-shadow: var(--gp-focus);
+}
+
+.artwork-size-fields > button {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gp-space-1);
+}
+
+.artwork-workbench-empty {
+  margin: 0;
+  padding: var(--gp-space-3);
+  border: 1px dashed var(--gp-line-strong);
+  border-radius: var(--gp-radius-sm);
+  color: var(--gp-muted);
+  font-size: var(--gp-text-sm);
+  text-align: center;
+}
+
+.artwork-workbench-actions {
+  display: flex;
+  gap: var(--gp-space-2);
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: var(--gp-space-2);
+}
+
+/* Below this the two panes stop being readable side by side. */
+@media (max-width: 1024px) {
+  .artwork-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .artwork-workbench-viewer {
+    max-height: 440px;
+  }
+}

@@ -167,6 +167,24 @@ check(
   "Artwork findings are missing, or a finding level now feeds the blocking severity."
 );
 check(preflightRoute.includes("measureBleed") && preflightRoute.includes('PDFName.of("TrimBox")'), "Bleed is no longer measured from the PDF's declared trim box.");
+
+// The artwork workbench shows the customer's file beside the size they asked
+// for, and re-measures against a size staff types in.
+check(
+  emailCenter.includes("artwork-workbench") &&
+  emailCenter.includes("openArtworkWorkbench") &&
+  emailCenter.includes("recheckArtworkSize"),
+  "The artwork workbench or its size re-check is missing."
+);
+// Opening a ticket must never pull its attachment on its own. A ticket can carry
+// a very large file, and fetching it just because the ticket was selected would
+// make the queue unusable. Every workbench open has to come from a click.
+check(
+  !/useEffect\([^)]*openArtworkWorkbench/s.test(emailCenter) &&
+  (emailCenter.match(/openArtworkWorkbench\(/g) || []).length ===
+    (emailCenter.match(/onClick=\{\(\) => openArtworkWorkbench\(/g) || []).length + 1,
+  "The artwork workbench is being opened automatically instead of on request."
+);
 check(misApp.includes("function inferEmailQuantity") && misApp.includes("[phone number]") && !misApp.includes('(?:qty|quantity|print|need|order)?\\s*(\\d{2,7})'), "Deterministic email quantity parser is still accepting bare numbers.");
 
 // v0.7.0.9 business-routing / intake-identity / remembered-session gates.

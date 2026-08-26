@@ -850,6 +850,25 @@ export function EmailCenter({
   const mailListRef = useRef<HTMLDivElement | null>(null);
   const mailListScrollTopRef = useRef(0);
   const attachmentPreviewAbortRef = useRef<AbortController | null>(null);
+  /**
+   * Artwork workbench: the customer's PDF shown beside what they asked for.
+   * Opened on request rather than automatically, so simply opening a ticket
+   * never pulls a large attachment from the mailbox.
+   */
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
+  const [artworkRecheckBusy, setArtworkRecheckBusy] = useState(false);
+  const [sizeDraft, setSizeDraft] = useState<{ width: string; height: string }>({ width: "", height: "" });
+  /**
+   * The workbench keeps its own preview state rather than sharing the modal's.
+   * The modal is a transient overlay that is closed and revoked as staff moves
+   * around the mailbox; the workbench stays open while they work the ticket, and
+   * one closing the other would revoke the object URL out from under it.
+   */
+  const [inlinePreview, setInlinePreview] = useState<{ url: string; filename: string; mimeType: string } | undefined>();
+  const [inlinePreviewBusy, setInlinePreviewBusy] = useState(false);
+  const [inlinePreviewError, setInlinePreviewError] = useState("");
+  const inlinePreviewAbortRef = useRef<AbortController | null>(null);
+  const inlinePreviewUrlRef = useRef<string | undefined>(undefined);
   const hydratingMessageIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -2346,6 +2365,33 @@ export function EmailCenter({
     return results;
   }
 
+  /**
+   * A different ticket means different artwork, so the workbench closes and its
+   * blob is released rather than leaking one object URL per ticket opened.
+   */
+  useEffect(() => {
+    setWorkbenchOpen(false);
+    releaseInlinePreview();
+    // Keyed to the opened ticket on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTicket?.id]);
+
+  // Release the blob when the component goes away.
+  useEffect(() => releaseInlinePreview, []);
+
+  /**
+   * Keep the size fields showing the ticket's current finished size, unless
+   * staff is part-way through typing a different one.
+   */
+  useEffect(() => {
+    if (artworkRecheckBusy) return;
+    setSizeDraft({
+      width: selectedTicket?.pieceWidth ? String(selectedTicket.pieceWidth) : "",
+      height: selectedTicket?.pieceHeight ? String(selectedTicket.pieceHeight) : ""
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTicket?.id, selectedTicket?.pieceWidth, selectedTicket?.pieceHeight]);
+
   useEffect(() => {
     if (section !== "tickets" || !selectedTicket || aiTicketBusy) return;
     const ticket = selectedTicket;
@@ -2409,6 +2455,116 @@ export function EmailCenter({
       status: remainingIssues.length ? "Missing Information" : "AI Reviewed",
       preflightReviewedAt: now
     });
+  }
+
+  /**
+   * Re-measure the artwork against a finished size staff typed in.
+   *
+   * The size read from the email is a good first guess, but it is only a guess:
+   * a customer writes "about 3 by 4", or means the visible area rather than the
+   * trim. Correcting it previously meant editing the ticket form and waiting for
+   * another AI pass. This re-runs the measurement directly, so the verdict and
+   * the findings update against the number staff actually intends to print.
+   */
+  /** Release the workbench's object URL. Browsers keep the blob alive until this runs. */
+  function releaseInlinePreview() {
+    inlinePreviewAbortRef.current?.abort();
+    inlinePreviewAbortRef.current = null;
+    if (inlinePreviewUrlRef.current) URL.revokeObjectURL(inlinePreviewUrlRef.current);
+    inlinePreviewUrlRef.current = undefined;
+    setInlinePreview(undefined);
+    setInlinePreviewBusy(false);
+    setInlinePreviewError("");
+  }
+
+  /**
+   * Open the workbench, fetching the artwork the first time it is asked for.
+   * Deliberately not automatic: a ticket can carry a hundred-megabyte file, and
+   * pulling it from the mailbox merely because someone clicked the ticket would
+   * make the list painful to browse.
+   */
+  async function openArtworkWorkbench(force = false) {
+    if (!selectedPrimaryArtwork || !selectedTicket) return;
+    if (workbenchOpen && !force) {
+      setWorkbenchOpen(false);
+      return;
+    }
+    setWorkbenchOpen(true);
+    if (inlinePreview && !force) return;
+
+    const { message, attachment } = selectedPrimaryArtwork;
+    const kind = attachmentPreviewKind(attachment);
+    if (kind === "other" || !authToken || !message.providerMessageId || !attachment.providerAttachmentId ||
+        attachment.providerAttachmentId.startsWith("demo-")) {
+      setInlinePreviewError("This file is not available from the mailbox for preview.");
+      return;
+    }
+
+    inlinePreviewAbortRef.current?.abort();
+    const controller = new AbortController();
+    inlinePreviewAbortRef.current = controller;
+    setInlinePreviewBusy(true);
+    setInlinePreviewError("");
+    try {
+      const blob = await getEmailAttachmentBlob(authToken, message, attachment, { signal: controller.signal });
+      if (controller.signal.aborted || inlinePreviewAbortRef.current !== controller) return;
+      const previewBlob = kind === "pdf"
+        ? new Blob([await blob.arrayBuffer()], { type: "application/pdf" })
+        : blob;
+      if (controller.signal.aborted || inlinePreviewAbortRef.current !== controller) return;
+      if (inlinePreviewUrlRef.current) URL.revokeObjectURL(inlinePreviewUrlRef.current);
+      const url = URL.createObjectURL(previewBlob);
+      inlinePreviewUrlRef.current = url;
+      setInlinePreview({
+        url,
+        filename: attachment.filename,
+        mimeType: kind === "pdf" ? "application/pdf" : (previewBlob.type.startsWith("image/") ? previewBlob.type : attachment.mimeType)
+      });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setInlinePreviewError(error instanceof Error ? error.message : "Unable to open the artwork.");
+    } finally {
+      if (inlinePreviewAbortRef.current === controller) {
+        inlinePreviewAbortRef.current = null;
+        setInlinePreviewBusy(false);
+      }
+    }
+  }
+
+  async function recheckArtworkSize(width: number, height: number) {
+    if (!selectedTicket || artworkRecheckBusy) return;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+
+    setArtworkRecheckBusy(true);
+    try {
+      const results = await preflightTicketArtwork(selectedTicket, selectedTicketThread, width, height);
+      const previous = new Map((selectedTicket.artworkPreflight ?? []).map((item) => [item.attachmentId, item]));
+      // A staff-entered size is a new question, so an approval given against the
+      // previous size does not carry over.
+      const merged = results.map((item) => {
+        const before = previous.get(item.attachmentId);
+        const sameSize = before &&
+          sameRequestedSize(before.requestedWidth, width) &&
+          sameRequestedSize(before.requestedHeight, height);
+        return sameSize && before?.approved ? { ...item, approved: true, approvedAt: before.approvedAt } : item;
+      });
+
+      updateTicket({
+        pieceWidth: width,
+        pieceHeight: height,
+        artworkPreflight: merged.length ? merged : selectedTicket.artworkPreflight,
+        preflightReviewedAt: new Date().toISOString()
+      });
+      setAiTicketMessage(
+        merged.length
+          ? `Artwork re-checked against ${cleanSize(width)} × ${cleanSize(height)} in.`
+          : `Finished size set to ${cleanSize(width)} × ${cleanSize(height)} in. There is no artwork to measure yet.`
+      );
+    } catch (error) {
+      setAiTicketMessage(error instanceof Error ? error.message : "The artwork could not be re-checked.");
+    } finally {
+      setArtworkRecheckBusy(false);
+    }
   }
 
   function draftArtworkQuestion(result: ArtworkPreflightResult) {
@@ -3500,7 +3656,9 @@ Answer: `);
                               ) : <div className="email-primary-size-check pending">Size will be checked against the requested finished size during AI review.</div>}
                             </div>
                             <div className="email-primary-artwork-actions">
-                              <button className="secondary-button" type="button" onClick={() => void previewEmailAttachment(selectedTicket.threadId, selectedPrimaryArtwork.message, selectedPrimaryArtwork.attachment)}>Open PDF</button>
+                              <button className="secondary-button" type="button" onClick={() => openArtworkWorkbench()}>
+                                {workbenchOpen ? "Hide artwork" : "Review artwork"}
+                              </button>
                               {selectedPrimaryPreflight?.severity === "warning" && !selectedPrimaryPreflight.approved ? <button className="text-button small" type="button" onClick={() => draftArtworkQuestion(selectedPrimaryPreflight)}><Reply size={14} />Ask customer</button> : null}
                             </div>
                           </>
@@ -3509,9 +3667,99 @@ Answer: `);
                         )}
                       </div>
 
+                      {/*
+                        The workbench: the customer's file and the size they
+                        asked for, on screen together. Previously the PDF opened
+                        in a modal over the ticket, so staff had to hold the
+                        request in their head while looking at the artwork.
+                      */}
+                      {workbenchOpen && selectedPrimaryArtwork ? (
+                        <div className="artwork-workbench">
+                          <div className="artwork-workbench-viewer">
+                            {inlinePreviewBusy ? (
+                              <div className="email-preview-loading"><LoaderCircle className="spin" size={26} /><strong>Opening artwork…</strong></div>
+                            ) : inlinePreviewError ? (
+                              <div className="email-preview-loading error">
+                                <AlertTriangle size={26} /><strong>{inlinePreviewError}</strong>
+                                <button className="secondary-button" type="button" onClick={() => openArtworkWorkbench(true)}>Retry</button>
+                              </div>
+                            ) : inlinePreview?.mimeType === "application/pdf" ? (
+                              <EmailPdfViewer url={inlinePreview.url} filename={inlinePreview.filename} />
+                            ) : inlinePreview?.mimeType.startsWith("image/") ? (
+                              <img src={inlinePreview.url} alt={inlinePreview.filename} />
+                            ) : (
+                              <div className="email-preview-loading"><FileInput size={26} /><strong>This file type cannot be previewed.</strong></div>
+                            )}
+                          </div>
+
+                          <div className="artwork-workbench-panel">
+                            <h4>Finished size</h4>
+                            <p>What the piece should measure when it is trimmed. Change it and the artwork is measured again.</p>
+                            <div className="artwork-size-fields">
+                              <label>
+                                <span>Width (in)</span>
+                                <input
+                                  type="number" min="0.25" step="0.25" inputMode="decimal"
+                                  value={sizeDraft.width}
+                                  onChange={(event) => setSizeDraft((current) => ({ ...current, width: event.target.value }))}
+                                />
+                              </label>
+                              <label>
+                                <span>Height (in)</span>
+                                <input
+                                  type="number" min="0.25" step="0.25" inputMode="decimal"
+                                  value={sizeDraft.height}
+                                  onChange={(event) => setSizeDraft((current) => ({ ...current, height: event.target.value }))}
+                                />
+                              </label>
+                              <button
+                                className="secondary-button"
+                                type="button"
+                                disabled={artworkRecheckBusy || !Number(sizeDraft.width) || !Number(sizeDraft.height)}
+                                onClick={() => void recheckArtworkSize(Number(sizeDraft.width), Number(sizeDraft.height))}
+                              >
+                                {artworkRecheckBusy ? <LoaderCircle className="spin" size={14} /> : null}
+                                {artworkRecheckBusy ? "Checking…" : "Check this size"}
+                              </button>
+                            </div>
+
+                            {selectedPrimaryPreflight?.findings?.length ? (
+                              <ul className="artwork-findings">
+                                {selectedPrimaryPreflight.findings.map((finding) => (
+                                  <li className={`artwork-finding ${finding.level}`} key={finding.id}>
+                                    <span className="artwork-finding-dot" aria-hidden="true" />
+                                    <span><strong>{finding.title}</strong><small>{finding.detail}</small></span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="artwork-workbench-empty">Enter a finished size to check the artwork against it.</p>
+                            )}
+
+                            {selectedPrimaryPreflight?.severity === "warning" && !selectedPrimaryPreflight.approved ? (
+                              <div className="artwork-workbench-actions">
+                                <button className="secondary-button" type="button" onClick={() => draftArtworkQuestion(selectedPrimaryPreflight)}>
+                                  <Reply size={15} /> Ask the customer
+                                </button>
+                                {selectedPrimaryPreflight.proportionalWidthOption ? (
+                                  <button className="text-button" type="button" onClick={() => resolveArtworkWarning(selectedPrimaryPreflight.attachmentId, selectedPrimaryPreflight.proportionalWidthOption)}>
+                                    Use {cleanSize(selectedPrimaryPreflight.proportionalWidthOption.width)} × {cleanSize(selectedPrimaryPreflight.proportionalWidthOption.height)}
+                                  </button>
+                                ) : null}
+                                {selectedPrimaryPreflight.proportionalHeightOption ? (
+                                  <button className="text-button" type="button" onClick={() => resolveArtworkWarning(selectedPrimaryPreflight.attachmentId, selectedPrimaryPreflight.proportionalHeightOption)}>
+                                    Use {cleanSize(selectedPrimaryPreflight.proportionalHeightOption.width)} × {cleanSize(selectedPrimaryPreflight.proportionalHeightOption.height)}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
                       <div className="email-to-press-actions">
-                        <button type="button" onClick={() => selectedPrimaryArtwork && void previewEmailAttachment(selectedTicket.threadId, selectedPrimaryArtwork.message, selectedPrimaryArtwork.attachment)} disabled={!selectedPrimaryArtwork}>
-                          <span>1</span><div><strong>Review artwork</strong><small>Open PDF + size check</small></div>
+                        <button type="button" onClick={() => openArtworkWorkbench()} disabled={!selectedPrimaryArtwork}>
+                          <span>1</span><div><strong>Review artwork</strong><small>PDF beside the requested size</small></div>
                         </button>
                         <button type="button" onClick={() => onStartEstimate(selectedTicket.id, "job")}>
                           <span>2</span><div><strong>Job Setup</strong><small>AI details + step & repeat + paper</small></div>
