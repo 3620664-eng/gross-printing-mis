@@ -1,10 +1,11 @@
 "use client";
 
-import { Archive, ArrowRight, BriefcaseBusiness, FileText, FolderOpen, Grid2X2, List, Plus, ReceiptText, UserPlus } from "lucide-react";
+import { Archive, ArrowRight, BriefcaseBusiness, FileText, FolderOpen, Grid2X2, List, ReceiptText, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { formatMoney } from "@/lib/pricing";
 import type { Customer, Invoice, Job, Quote, UploadedFile } from "@/lib/types";
 import { ImportExportToolbar } from "./ImportExportToolbar";
+import { CustomerForm } from "./CustomerForm";
 import { RecordModal } from "./RecordModal";
 import { StatusBadge } from "./StatusBadge";
 import { CustomerPortalAdminPanel } from "./CustomerPortalAdminPanel";
@@ -53,18 +54,6 @@ export function CustomerPortal({
   const [selectedId, setSelectedId] = useState("");
   const [customerSection, setCustomerSection] = useState<"overview" | "jobs" | "files" | "account">("overview");
   const [showAdd, setShowAdd] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    name: "",
-    contact: "",
-    email: "",
-    phone: "",
-    companyType: "Commercial",
-    terms: "Due on receipt",
-    address: "",
-    city: "",
-    state: "",
-    zip: ""
-  });
   const [archiveConfirm, setArchiveConfirm] = useState(false);
   const [newContact, setNewContact] = useState({ name: "", email: "", phone: "", department: "" });
   const selected = customers.find((customer) => customer.id === selectedId);
@@ -134,84 +123,19 @@ export function CustomerPortal({
 
       {showAdd ? (
         <RecordModal title="New customer" subtitle="Available immediately in estimates and jobs" onClose={() => setShowAdd(false)}>
-          <div className="field-grid three">
-            <label>
-              Customer name
-              <input value={newCustomer.name} onChange={(event) => setNewCustomer({ ...newCustomer, name: event.target.value })} />
-            </label>
-            <label>
-              Contact
-              <input value={newCustomer.contact} onChange={(event) => setNewCustomer({ ...newCustomer, contact: event.target.value })} />
-            </label>
-            <label>
-              Email
-              <input type="email" value={newCustomer.email} onChange={(event) => setNewCustomer({ ...newCustomer, email: event.target.value })} />
-            </label>
-            <label>
-              Phone
-              <input value={newCustomer.phone} onChange={(event) => setNewCustomer({ ...newCustomer, phone: event.target.value })} />
-            </label>
-            <label>
-              Type
-              <input value={newCustomer.companyType} onChange={(event) => setNewCustomer({ ...newCustomer, companyType: event.target.value })} />
-            </label>
-            <label>
-              Terms
-              <select value={newCustomer.terms} onChange={(event) => setNewCustomer({ ...newCustomer, terms: event.target.value })}>
-                <option>Due on receipt</option>
-                <option>Net 15</option>
-                <option>Net 30</option>
-                <option>COD</option>
-              </select>
-            </label>
-            <label>
-              Street address
-              <input value={newCustomer.address} onChange={(event) => setNewCustomer({ ...newCustomer, address: event.target.value })} />
-            </label>
-            <label>
-              City
-              <input value={newCustomer.city} onChange={(event) => setNewCustomer({ ...newCustomer, city: event.target.value })} />
-            </label>
-            <label>
-              State
-              <input value={newCustomer.state} onChange={(event) => setNewCustomer({ ...newCustomer, state: event.target.value })} />
-            </label>
-            <label>
-              Zip
-              <input value={newCustomer.zip} onChange={(event) => setNewCustomer({ ...newCustomer, zip: event.target.value })} />
-            </label>
-          </div>
-          <div className="button-row right">
-            <button
-              className="primary-button"
-              type="button"
-              disabled={!newCustomer.name.trim()}
-              onClick={() => {
-                const id = onAddCustomer({
-                  ...newCustomer,
-                  lastOrder: "",
-                  totalSpend: 0
-                });
-                setSelectedId(id);
-                setShowAdd(false);
-                setNewCustomer({
-                  name: "",
-                  contact: "",
-                  email: "",
-                  phone: "",
-                  companyType: "Commercial",
-                  terms: "Due on receipt",
-                  address: "",
-                  city: "",
-                  state: "",
-                  zip: ""
-                });
-              }}
-            >
-              <Plus size={16} />
-              Save customer
-            </button>
-          </div>
+          {/*
+            The same form Job Setup and the email ticket path use, so a customer
+            created here gets the same fields and the same duplicate check as one
+            created anywhere else.
+          */}
+          <CustomerForm
+            customers={customers}
+            onCreate={onAddCustomer}
+            onCreated={(id) => { setSelectedId(id); setShowAdd(false); }}
+            onCancel={() => setShowAdd(false)}
+            onOpenExisting={(id) => { setSelectedId(id); setShowAdd(false); }}
+            submitLabel="Save customer"
+          />
         </RecordModal>
       ) : null}
 
@@ -372,7 +296,13 @@ export function CustomerPortal({
                   <label>City<input value={selected.city ?? ""} onChange={(event) => onUpdateCustomer(selected.id, { city: event.target.value })} /></label>
                   <label>State<input value={selected.state ?? ""} onChange={(event) => onUpdateCustomer(selected.id, { state: event.target.value })} /></label>
                   <label>Zip<input value={selected.zip ?? ""} onChange={(event) => onUpdateCustomer(selected.id, { zip: event.target.value })} /></label>
-                  <label>Open balance<input type="number" min="0" step="0.01" value={selected.openBalance ?? 0} onChange={(event) => { const openBalance = Number(event.target.value); onUpdateCustomer(selected.id, { openBalance, totalSpend: openBalance }); }} /></label>
+                  {/*
+                    Open balance and lifetime spend are different numbers and are
+                    kept apart. This field used to write both, so clearing a
+                    balance silently rewrote a customer's whole history to zero.
+                  */}
+                  <label>Open balance<input type="number" min="0" step="0.01" value={selected.openBalance ?? 0} onChange={(event) => onUpdateCustomer(selected.id, { openBalance: Number(event.target.value) || 0 })} /></label>
+                  <label>Lifetime spend<input type="text" value={formatMoney(selected.totalSpend)} readOnly disabled /><small>Totalled from invoices. Not editable here.</small></label>
                 </div>
               </section>
 

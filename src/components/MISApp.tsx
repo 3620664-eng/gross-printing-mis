@@ -167,7 +167,11 @@ const menu: MenuItem[] = [
 
   // Customers and money. Never visible to production roles: the server already
   // strips invoice fields for those roles, and the sidebar now matches.
-  { view: "Customer Portal", icon: Users, roles: OFFICE_ROLES, group: "Customers" },
+  // Labelled "Customers", not "Customer Portal": this is the shop's customer
+  // list, while the customer-facing portal is a different thing living at
+  // /portal. The heading and the /customers route already said Customers; only
+  // the sidebar disagreed, which is where staff go looking.
+  { view: "Customer Portal", label: "Customers", icon: Users, roles: OFFICE_ROLES, group: "Customers" },
   { view: "Invoices", icon: Receipt, roles: OFFICE_ROLES, group: "Customers" },
   { view: "Files", icon: FileText, roles: ["admin"], group: "Customers" },
 

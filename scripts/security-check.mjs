@@ -82,7 +82,17 @@ check(portalAdmin.includes("rejectCrossSiteMutation") && portalAdmin.includes("r
 check(emailSend.includes("rejectCrossSiteMutation") && emailSend.includes("rejectOversizedJson"), "Email mutation guards are incomplete.");
 check(shopData.includes("validateStaffRequest") && shopData.includes("stateForRole"), "Protected role-filtered shop-data gateway is incomplete.");
 check(misApp.includes('{ view: "Invoices", icon: Receipt, roles: OFFICE_ROLES'), "Office invoice navigation is not connected to the protected role model.");
-check(misApp.includes('{ view: "Customer Portal", icon: Users, roles: OFFICE_ROLES'), "Customers navigation is not available to normal office staff.");
+// Matches the menu entry regardless of the other fields on it, so adding a
+// label or an icon cannot silently disable the check. What matters is that the
+// Customers screen stays reachable by normal office staff.
+check(
+  /\{\s*view:\s*"Customer Portal",[^}]*roles:\s*OFFICE_ROLES/.test(misApp),
+  "Customers navigation is not available to normal office staff."
+);
+// The sidebar must say "Customers". Calling it "Customer Portal" points staff at
+// the customer-facing site at /portal instead of their own customer list, which
+// is where they go looking to add or edit a customer.
+check(misApp.includes('label: "Customers"'), "The customer list is mislabelled in the sidebar.");
 check(misApp.includes('canManagePortal={currentRole === "admin"}') && misApp.includes('canBulkManage={currentRole === "admin"}'), "Front Desk can reach owner-only Customer Portal or bulk customer controls.");
 check(newEstimateJob.includes('onAddCustomer?:') && newEstimateJob.includes('Save & use customer') && newEstimateJob.includes('COMMON_FINISHED_SIZES'), "Fast customer creation or finished-size presets are missing from Job Setup.");
 check(impositionStudio.includes('onDrop={(event) =>') && impositionStudio.includes('Finished size set automatically from artwork'), "Artwork drag/drop or automatic PDF-size application is missing.");

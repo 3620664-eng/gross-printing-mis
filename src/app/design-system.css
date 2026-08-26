@@ -512,3 +512,124 @@ body.workflow-drag-active {
   transform: rotate(1.5deg);
   box-shadow: var(--gp-shadow-md);
 }
+
+/* ============================================================
+   Customer form
+   ============================================================
+   One form, used by the Customers screen, Job Setup, and the email ticket
+   path. Before this each of those grew its own version, which is why the same
+   shop could hold two records for one customer and nothing noticed.
+*/
+
+.customer-form {
+  display: grid;
+  gap: var(--gp-space-3);
+}
+
+.customer-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--gp-space-3);
+}
+
+.customer-form.compact .customer-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.customer-form-wide {
+  grid-column: 1 / -1;
+}
+
+.customer-form-grid label {
+  display: grid;
+  gap: var(--gp-space-1);
+  min-width: 0;
+}
+
+.customer-form-grid label > span {
+  color: var(--gp-muted);
+  font-size: var(--gp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.customer-form-grid input,
+.customer-form-grid select {
+  min-height: 38px;
+  padding: 0 var(--gp-space-2);
+  border: 1px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+  color: var(--gp-ink);
+  font-size: var(--gp-text-base);
+}
+
+.customer-form-grid input:focus-visible,
+.customer-form-grid select:focus-visible {
+  outline: none;
+  border-color: var(--gp-gold);
+  box-shadow: var(--gp-focus);
+}
+
+/* A field the form will not save. Marked on the border rather than by
+   recolouring the text, which stays readable either way. */
+.customer-form-grid label.invalid input,
+.customer-form-grid label.invalid select {
+  border-color: var(--gp-red);
+}
+
+.customer-form-issues {
+  display: grid;
+  gap: var(--gp-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.customer-form-issue {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gp-space-2);
+  padding: var(--gp-space-2) var(--gp-space-3);
+  border-radius: var(--gp-radius-sm);
+  font-size: var(--gp-text-base);
+  line-height: 1.45;
+}
+
+.customer-form-issue > span {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Stops the save. Two records sharing an email address means mail from that
+   customer can never be routed to one of them reliably again. */
+.customer-form-issue.error {
+  background: var(--gp-red-soft);
+  color: var(--gp-red);
+}
+
+/* Worth reading, does not stop the save: two real businesses can share a name,
+   and a walk-in customer legitimately has no email address. */
+.customer-form-issue.warning {
+  background: var(--gp-amber-soft);
+  color: var(--gp-amber);
+}
+
+.customer-form-issue button {
+  flex: none;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+  border-radius: var(--gp-radius-pill);
+  background: transparent;
+  color: inherit;
+  font-size: var(--gp-text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.customer-form-actions {
+  display: flex;
+  gap: var(--gp-space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
