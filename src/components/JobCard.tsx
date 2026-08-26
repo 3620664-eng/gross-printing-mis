@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock, GripVertical } from "lucide-react";
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 import { formatDateTime, formatMoney } from "@/lib/pricing";
 import type { Job } from "@/lib/types";
 import { RushBadge } from "./StatusBadge";
@@ -9,7 +9,12 @@ import { RushBadge } from "./StatusBadge";
 interface JobCardProps {
   job: Job;
   onClick: () => void;
-  onDragHandlePointerDown?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  /**
+   * Starts a drag. Attached to the whole card, not just the grip: staff reach
+   * for the card itself, and a drag surface the size of an icon reads as "this
+   * board does not move".
+   */
+  onCardPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void;
   isDragging?: boolean;
   overlay?: boolean;
   showPricing?: boolean;
@@ -34,7 +39,7 @@ function dueWarning(job: Job) {
 export function JobCard({
   job,
   onClick,
-  onDragHandlePointerDown,
+  onCardPointerDown,
   isDragging = false,
   overlay = false,
   showPricing = true
@@ -45,6 +50,7 @@ export function JobCard({
     <article
       className={`job-card ${warning ? `job-card-${warning.className}` : ""} ${isDragging ? "drag-source" : ""} ${overlay ? "drag-overlay-card" : ""}`}
       data-job-id={job.id}
+      onPointerDown={overlay ? undefined : onCardPointerDown}
       onClick={overlay ? undefined : onClick}
       role={overlay ? undefined : "button"}
       tabIndex={overlay ? -1 : 0}
@@ -64,21 +70,14 @@ export function JobCard({
             {warning ? <span className={`due-chip ${warning.className}`}>{warning.label}</span> : null}
             <RushBadge rush={job.rush} />
           </div>
-          {!overlay && onDragHandlePointerDown ? (
-            <button
+          {!overlay && onCardPointerDown ? (
+            <span
               className="job-card-drag-handle"
-              type="button"
-              aria-label={`Move ${job.jobNumber}`}
-              title="Hold and drag to another production stage"
-              onClick={(event: ReactMouseEvent<HTMLButtonElement>) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => event.stopPropagation()}
-              onPointerDown={onDragHandlePointerDown}
+              title="Drag the card to another production stage"
+              aria-hidden="true"
             >
-              <GripVertical size={15} aria-hidden="true" />
-            </button>
+              <GripVertical size={15} />
+            </span>
           ) : null}
         </div>
       </div>

@@ -410,3 +410,105 @@
     max-height: 440px;
   }
 }
+
+/* ============================================================
+   Production board
+   ============================================================
+   Every stage previously washed its whole column in a different pastel —
+   green, amber, blue, purple, teal. Six competing tints across the widest
+   screen in the shop made the board loud, and the colour carried no
+   information a reader needed: the column already has a name at the top.
+
+   Stage identity now lives in a short accent bar on the column header, and
+   colour is spent where it means something instead: a job that is late.
+*/
+
+.kanban-column {
+  background: var(--gp-surface-muted);
+  border: 1px solid var(--gp-line);
+  border-top: 3px solid var(--gp-line-strong);
+  border-radius: var(--gp-radius-md);
+}
+
+/* One neutral board. The stage accent sits on the header rule below. */
+.kanban-column.lane-quote,
+.kanban-column.lane-approved,
+.kanban-column.lane-prepress,
+.kanban-column.lane-printing,
+.kanban-column.lane-finishing,
+.kanban-column.lane-ready {
+  background: var(--gp-surface-muted);
+}
+
+.kanban-column.lane-quote { border-top-color: var(--gp-line-strong); }
+.kanban-column.lane-approved { border-top-color: var(--gp-blue); }
+.kanban-column.lane-prepress { border-top-color: var(--gp-amber); }
+.kanban-column.lane-printing { border-top-color: var(--gp-gold); }
+.kanban-column.lane-finishing { border-top-color: var(--gp-violet, #5b4a83); }
+.kanban-column.lane-ready { border-top-color: var(--gp-green); }
+
+/* ---- The card as a drag surface ----
+   The whole card moves now, so it has to look like it can. */
+
+.job-card {
+  cursor: grab;
+  /* A press that becomes a drag must not also select the card's text, and on a
+     touchscreen must not scroll the board underneath it. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.job-card:active {
+  cursor: grabbing;
+}
+
+/* The grip is now decoration: the card itself is the handle. It stays as the
+   thing a reader's eye lands on to learn the board moves at all. */
+.job-card-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  color: var(--gp-line-strong);
+  pointer-events: none;
+}
+
+.job-card:hover .job-card-drag-handle {
+  color: var(--gp-muted);
+}
+
+/* The card left behind while its copy follows the pointer. */
+.job-card.drag-source {
+  opacity: 0.35;
+}
+
+/* Where the card will land if released now. */
+.workflow-card-placeholder {
+  border: 2px dashed var(--gp-gold);
+  border-radius: var(--gp-radius-md);
+  background: var(--gp-gold-soft);
+}
+
+.workflow-card-placeholder.source {
+  border-color: var(--gp-line-strong);
+  background: var(--gp-surface);
+}
+
+/* The column under the pointer, so the target reads at a glance on a wide board. */
+.kanban-column.drop-target {
+  border-color: var(--gp-gold);
+  background: var(--gp-surface-warm);
+}
+
+/* While dragging, nothing else on the page should be selectable or scrolling. */
+body.workflow-drag-active {
+  cursor: grabbing;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.workflow-drag-overlay {
+  pointer-events: none;
+  opacity: 0.95;
+  transform: rotate(1.5deg);
+  box-shadow: var(--gp-shadow-md);
+}

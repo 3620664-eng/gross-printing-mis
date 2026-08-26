@@ -48,6 +48,14 @@ type DragState = {
 const EDGE_SCROLL_ZONE = 56;
 const EDGE_SCROLL_STEP = 20;
 
+/**
+ * How far the pointer must travel before a press on a card counts as a drag
+ * rather than a click, in pixels. Small enough that dragging feels immediate,
+ * large enough to absorb the shake in an ordinary click — and in a tap on a
+ * touchscreen, where a finger never lands perfectly still.
+ */
+const DRAG_START_THRESHOLD = 5;
+
 function laneClass(status: JobStatus) {
   return `lane-${status.toLowerCase().replace(/\s+/g, "-")}`;
 }
@@ -113,6 +121,23 @@ export function Workflow({
   const boardRef = useRef<HTMLDivElement | null>(null);
   const assignedWorkRef = useRef<HTMLElement | null>(null);
   const onMoveJobRef = useRef(onMoveJob);
+  /**
+   * A press that has not yet decided whether it is a click or a drag. Held in a
+   * ref rather than state: it changes on every pointer event and must never
+   * cause a render, or the card would re-mount mid-press.
+   */
+  const pendingDragRef = useRef<{
+    jobId: string;
+    pointerId: number;
+    sourceStatus: JobStatus;
+    sourceIndex: number;
+    startX: number;
+    startY: number;
+    offsetX: number;
+    offsetY: number;
+    width: number;
+    height: number;
+  } | null>(null);
   const visibleJobs = useMemo(() => jobs.filter((job) => !job.archived && !job.deletedAt && job.status !== "Delivered"), [jobs]);
   const assignedTicketIsVisible = (ticket: EmailIntakeTicket) => {
     if (currentRole === "admin") return true;
@@ -206,30 +231,78 @@ export function Workflow({
     return { status, index };
   }
 
-  function beginDrag(job: Job, event: ReactPointerEvent<HTMLButtonElement>) {
+  /**
+   * Pressing a card arms a drag; it does not start one.
+   *
+   * The whole card is the drag surface, and the whole card is also the button
+   * that opens the job. Those only coexist if a press is allowed to be either
+   * until the pointer says which: under the movement threshold it stays a
+   * click, past it the card starts moving. Committing on pointerdown would mean
+   * every attempt to open a job snatched the card off the board.
+   */
+  function armDrag(job: Job, event: ReactPointerEvent<HTMLElement>) {
     if (event.button !== 0) return;
-    const card = event.currentTarget.closest("[data-job-id]") as HTMLElement | null;
+    const card = (event.target as HTMLElement).closest("[data-job-id]") as HTMLElement | null;
     if (!card) return;
-    event.preventDefault();
-    event.stopPropagation();
     const rect = card.getBoundingClientRect();
     const sourceJobs = jobsByStatus.get(job.status) ?? [];
     const sourceIndex = Math.max(0, sourceJobs.findIndex((item) => item.id === job.id));
-    setDrag({
+    pendingDragRef.current = {
       jobId: job.id,
       pointerId: event.pointerId,
       sourceStatus: job.status,
       sourceIndex,
-      targetStatus: job.status,
-      targetIndex: sourceIndex,
-      clientX: event.clientX,
-      clientY: event.clientY,
+      startX: event.clientX,
+      startY: event.clientY,
       offsetX: event.clientX - rect.left,
       offsetY: event.clientY - rect.top,
       width: rect.width,
       height: rect.height
-    });
+    };
   }
+
+  /** Watch an armed press and promote it to a drag once it travels far enough. */
+  useEffect(() => {
+    function handleMove(event: PointerEvent) {
+      const pending = pendingDragRef.current;
+      if (!pending || event.pointerId !== pending.pointerId) return;
+      const travelled = Math.hypot(event.clientX - pending.startX, event.clientY - pending.startY);
+      if (travelled < DRAG_START_THRESHOLD) return;
+
+      pendingDragRef.current = null;
+      // Only now is this a drag, so only now is it right to suppress the text
+      // selection and scrolling the browser would otherwise do.
+      event.preventDefault();
+      setDrag({
+        jobId: pending.jobId,
+        pointerId: pending.pointerId,
+        sourceStatus: pending.sourceStatus,
+        sourceIndex: pending.sourceIndex,
+        targetStatus: pending.sourceStatus,
+        targetIndex: pending.sourceIndex,
+        clientX: event.clientX,
+        clientY: event.clientY,
+        offsetX: pending.offsetX,
+        offsetY: pending.offsetY,
+        width: pending.width,
+        height: pending.height
+      });
+    }
+
+    function clearPending(event: PointerEvent) {
+      const pending = pendingDragRef.current;
+      if (pending && event.pointerId === pending.pointerId) pendingDragRef.current = null;
+    }
+
+    window.addEventListener("pointermove", handleMove, { passive: false });
+    window.addEventListener("pointerup", clearPending);
+    window.addEventListener("pointercancel", clearPending);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", clearPending);
+      window.removeEventListener("pointercancel", clearPending);
+    };
+  }, []);
 
   useEffect(() => {
     if (!drag) return;
@@ -289,7 +362,7 @@ export function Workflow({
           key={job.id}
           job={job}
           onClick={() => onSelectJob(job.id)}
-          onDragHandlePointerDown={(event) => beginDrag(job, event)}
+          onCardPointerDown={(event) => armDrag(job, event)}
           showPricing={canViewPricing}
         />
       ));
@@ -301,7 +374,7 @@ export function Workflow({
         key={job.id}
         job={job}
         onClick={() => onSelectJob(job.id)}
-        onDragHandlePointerDown={(event) => beginDrag(job, event)}
+        onCardPointerDown={(event) => armDrag(job, event)}
         showPricing={canViewPricing}
       />
     ));

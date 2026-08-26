@@ -168,6 +168,19 @@ check(
 );
 check(preflightRoute.includes("measureBleed") && preflightRoute.includes('PDFName.of("TrimBox")'), "Bleed is no longer measured from the PDF's declared trim box.");
 
+// The whole job card is the drag surface, not just the grip icon. A press only
+// becomes a drag once the pointer travels past a threshold, so tapping a card
+// still opens the job. Committing the drag on pointerdown would make every
+// attempt to open a job snatch the card off the board.
+const jobCardSource = read("src/components/JobCard.tsx");
+check(
+  workflow.includes("DRAG_START_THRESHOLD") &&
+  workflow.includes("armDrag") &&
+  jobCardSource.includes("onCardPointerDown") &&
+  jobCardSource.includes("onPointerDown={overlay ? undefined : onCardPointerDown}"),
+  "The production board no longer drags from the card itself."
+);
+
 // The artwork workbench shows the customer's file beside the size they asked
 // for, and re-measures against a size staff types in.
 check(
