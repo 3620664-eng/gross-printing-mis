@@ -462,6 +462,34 @@ check(
   "The client role list has drifted from the server's AppRole."
 );
 
+
+// --- Phase 4e: vendors ---
+
+// Vendors are office-and-owner only. Vendor bills are money, and the shop floor
+// must not see them: productionState builds its result from an allowlist, so a
+// new collection stays out unless someone adds it there deliberately.
+const vendorMatch = read("src/lib/vendor-match.ts");
+check(
+  shopData.includes('"vendors"') &&
+  /const writable: CollectionName\[\] = \[[^\]]*"vendors"/.test(shopData),
+  "The vendors collection is missing or not writable by office staff."
+);
+check(
+  !/result\.vendors\s*=/.test(shopData),
+  "Vendors are being sent to production roles, which exposes supplier bills to the shop floor."
+);
+check(
+  /\{\s*view:\s*"Vendors",[^}]*roles:\s*OFFICE_ROLES/.test(misApp),
+  "The Vendors screen is not restricted to office roles."
+);
+// Supplier mail arrives from many mailboxes on one company domain, so a private
+// domain match is strong evidence for a vendor where it is only a hint for a
+// customer. Free mail providers must never match this way.
+check(
+  vendorMatch.includes("isSharedPublicEmailDomain") && vendorMatch.includes("company_domain"),
+  "Vendor matching would treat a free mailbox domain as a supplier identity."
+);
+
 if (failures.length) {
   console.error("Gross Printing MIS security checks failed:");
   failures.forEach((failure) => console.error(`- ${failure}`));

@@ -9,6 +9,7 @@ export type AppView =
   | "Email Center"
   | "Portal Requests"
   | "Customer Portal"
+  | "Vendors"
   | "Files"
   | "Catalog"
   | "Time Learning"
@@ -334,6 +335,43 @@ export interface Customer {
   productPricingAdjustments?: Record<string, number>;
   portalInstantOrderEnabled?: boolean;
   portalQuoteApprovalRequired?: boolean;
+}
+
+/**
+ * A supplier the shop buys from — paper merchants, trade finishers, outside
+ * printers, delivery services.
+ *
+ * The mailbox already sorts vendor quotes, bills and orders into their own
+ * views (`vendor_quote`, `vendor_bill`, `vendor_order` in
+ * `email-business-classifier.ts`) but until now had nowhere to file them, so a
+ * bill from Mid-State Paper could be recognised as a bill and still not be
+ * connected to anything.
+ */
+export interface Vendor {
+  id: string;
+  name: string;
+  /** Who the shop deals with there. */
+  contact?: string;
+  email?: string;
+  phone?: string;
+  /** What they supply: paper, ink, trade finishing, delivery. */
+  category?: string;
+  /** Payment terms the shop has with them, e.g. "Net 30". */
+  terms?: string;
+  accountNumber?: string;
+  website?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  notes?: string;
+  /** Additional addresses that also belong to this vendor. */
+  contacts?: CustomerContact[];
+  archived?: boolean;
+  deletedAt?: string;
+  importedFrom?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PaperStock {

@@ -720,3 +720,73 @@ body.workflow-drag-active {
 .admin-role-effect.sees-money {
   color: var(--gp-amber);
 }
+
+/* ============================================================
+   Vendors
+   ============================================================
+   Suppliers the shop buys from. The screen leads with the reason it exists:
+   supplier mail that arrived and matched no record, so the gap the vendor list
+   fills is visible before the list itself.
+*/
+
+.vendor-unmatched {
+  border-left: 4px solid var(--gp-amber);
+}
+
+.vendor-unmatched > h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--gp-space-2);
+  font-size: var(--gp-text-md);
+}
+
+.vendor-unmatched > p {
+  margin: var(--gp-space-1) 0 var(--gp-space-3);
+  color: var(--gp-muted);
+  font-size: var(--gp-text-base);
+}
+
+.vendor-unmatched ul {
+  display: grid;
+  gap: var(--gp-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vendor-unmatched li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gp-space-3);
+  padding: var(--gp-space-2) var(--gp-space-3);
+  border: 1px solid var(--gp-line);
+  border-radius: var(--gp-radius-sm);
+  background: var(--gp-surface);
+}
+
+.vendor-unmatched li strong {
+  display: block;
+  font-size: var(--gp-text-base);
+}
+
+.vendor-unmatched li small {
+  display: block;
+  margin-top: 2px;
+  color: var(--gp-muted);
+  font-size: var(--gp-text-sm);
+}
+
+/* List beside the record being edited. */
+.list-split-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gp-space-3);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .list-split-layout {
+    grid-template-columns: 1fr;
+  }
+}

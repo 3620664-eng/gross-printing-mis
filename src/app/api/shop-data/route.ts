@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 const WORKSPACE_ID = "gross-printing";
 const COLLECTIONS = [
   "customers",
+  "vendors",
   "orders",
   "jobs",
   "quotes",
@@ -197,7 +198,7 @@ function frontDeskAllowedState(
   context: StaffContext
 ): Partial<Record<CollectionName, unknown[]>> {
   const writable: CollectionName[] = [
-    "customers", "orders", "jobs", "quotes", "invoices", "uploadedFiles", "emailLogs",
+    "customers", "vendors", "orders", "jobs", "quotes", "invoices", "uploadedFiles", "emailLogs",
     "emailTemplates", "emailThreads", "emailIntakeTickets", "emailBusinessRules", "aiLearningExamples"
   ];
   const result: Partial<Record<CollectionName, unknown[]>> = {};

@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Boxes,
+  Building2,
   CheckCircle2,
   ClipboardList,
   Eye,
@@ -40,6 +41,7 @@ import { NewEstimateJob } from "./NewEstimateJob";
 import { NotificationCenter } from "./NotificationCenter";
 import { Orders } from "./Orders";
 import { OwnerOperations } from "./OwnerOperations";
+import { Vendors } from "./Vendors";
 import { PortalRequests } from "./PortalRequests";
 import { Quotes } from "./Quotes";
 import { Settings } from "./Settings";
@@ -66,6 +68,7 @@ import { matchCustomerCandidates } from "@/lib/customer-match";
 import { mergeCustomers } from "@/lib/customer-merge";
 import { paperStockRemoval, validateCatalogPrice, validatePaperStock } from "@/lib/catalog-validation";
 import { ALL_ROLES, OFFICE_ROLES } from "@/lib/staff-roles";
+import { isVendorEmailCategory, validateVendor } from "@/lib/vendor-match";
 import { classifyBusinessEmail, emailDomain, emailHeaderAddress, emailHeaderName, isPublicEmailDomain, safeBusinessRules } from "@/lib/email-business-classifier";
 import { sanitizeLearningText } from "@/lib/learning-engine";
 import { userVisibleEmailAttachments, userVisibleThreadAttachments } from "@/lib/email-attachment-utils";
@@ -110,6 +113,7 @@ import type {
   OrderItemSuggestion,
   OrderLineItem,
   PaperStock,
+  Vendor,
   PrintOrder,
   Quote,
   TimeCategory,
@@ -177,6 +181,7 @@ const menu: MenuItem[] = [
   // the sidebar disagreed, which is where staff go looking.
   { view: "Customer Portal", label: "Customers", icon: Users, roles: OFFICE_ROLES, group: "Customers" },
   { view: "Invoices", icon: Receipt, roles: OFFICE_ROLES, group: "Customers" },
+  { view: "Vendors", icon: Building2, roles: OFFICE_ROLES, group: "Customers" },
   { view: "Files", icon: FileText, roles: ["admin"], group: "Customers" },
 
   // Running the shop.
@@ -235,6 +240,7 @@ const VIEW_PATHS: Record<AppView, string> = {
   "Email Center": "/email-center",
   "Portal Requests": "/portal-requests",
   "Customer Portal": "/customers",
+  Vendors: "/vendors",
   Files: "/files",
   Catalog: "/catalog",
   "Time Learning": "/time-learning",
@@ -455,6 +461,8 @@ type NumberingSettings = {
 
 type DemoPersistedState = {
   customers: Customer[];
+  /** Suppliers the shop buys from. */
+  vendors: Vendor[];
   orders: PrintOrder[];
   jobs: Job[];
   quotes: Quote[];
@@ -660,6 +668,9 @@ function cloneDemoValue<T>(value: T): T {
 function defaultDemoState(): DemoPersistedState {
   return {
     customers: cloneDemoValue(demoCustomers),
+    // The shop's suppliers start empty: unlike customers there is no imported
+    // list to seed from, and a fictional vendor in a real shop is worse than none.
+    vendors: [],
     orders: [],
     jobs: cloneDemoValue(demoJobs),
     quotes: cloneDemoValue(demoQuotes),
@@ -808,6 +819,7 @@ function normalizeDemoState(saved?: Partial<DemoPersistedState>): DemoPersistedS
     aiLearningExamples: Array.isArray(saved?.aiLearningExamples) ? saved.aiLearningExamples : defaults.aiLearningExamples,
     statusEvents: Array.isArray(saved?.statusEvents) ? saved.statusEvents : defaults.statusEvents,
     operationalActivities: Array.isArray(saved?.operationalActivities) ? saved.operationalActivities : defaults.operationalActivities,
+    vendors: Array.isArray(saved?.vendors) ? saved.vendors : (defaults.vendors ?? []),
     paperStocks: Array.isArray(saved?.paperStocks) ? saved.paperStocks : defaults.paperStocks,
     productCategories: Array.isArray(saved?.productCategories) ? saved.productCategories : defaults.productCategories,
     productPresets: Array.isArray(saved?.productPresets) ? saved.productPresets : defaults.productPresets,
@@ -992,6 +1004,7 @@ export function MISApp() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [paperStocks, setPaperStocks] = useState<PaperStock[]>([]);
   const [productCategories, setProductCategories] = useState<string[]>([]);
   const [productPresets, setProductPresets] = useState<ProductPreset[]>([]);
@@ -1261,6 +1274,7 @@ export function MISApp() {
       aiLearningExamples: overrides.aiLearningExamples ?? aiLearningExamples,
       statusEvents: overrides.statusEvents ?? statusEvents,
       operationalActivities: overrides.operationalActivities ?? operationalActivities,
+      vendors: overrides.vendors ?? vendors,
       paperStocks: overrides.paperStocks ?? paperStocks,
       productCategories: overrides.productCategories ?? productCategories,
       productPresets: overrides.productPresets ?? productPresets,
@@ -1316,6 +1330,7 @@ export function MISApp() {
     setAiLearningExamples(hydratedState.aiLearningExamples);
     setStatusEvents(hydratedState.statusEvents);
     setOperationalActivities(hydratedState.operationalActivities);
+    setVendors(hydratedState.vendors ?? []);
     setPaperStocks(hydratedState.paperStocks);
     setProductCategories(hydratedState.productCategories);
     setProductPresets(hydratedState.productPresets);
@@ -6176,6 +6191,40 @@ ${latestInbound.bodyText}`;
     setNotice("Customer restored.");
   }
 
+  function addVendor(vendor: Omit<Vendor, "id">) {
+    const check = validateVendor(vendor, vendors);
+    if (!check.canSave) {
+      setNotice(check.issues.find((issue) => issue.level === "error")!.message);
+      return "";
+    }
+    const id = makeId("vendor");
+    setVendors((current) => [{ ...vendor, id, createdAt: nowIso(), updatedAt: nowIso() }, ...current]);
+    setNotice(`${vendor.name} added to Vendors. Their quotes and bills will match automatically.`);
+    return id;
+  }
+
+  function updateVendor(vendorId: string, updates: Partial<Omit<Vendor, "id">>) {
+    const current = vendors.find((vendor) => vendor.id === vendorId);
+    if (!current) return;
+    const check = validateVendor({ ...current, ...updates }, vendors, vendorId);
+    if (!check.canSave) {
+      setNotice(check.issues.find((issue) => issue.level === "error")!.message);
+      return;
+    }
+    setVendors((list) => list.map((vendor) => (vendor.id === vendorId ? { ...vendor, ...updates, updatedAt: nowIso() } : vendor)));
+  }
+
+  /**
+   * Archived rather than removed. A vendor is referenced by the bills and
+   * orders already filed against them, and deleting the record would leave that
+   * history describing a supplier the shop no longer lists.
+   */
+  function archiveVendor(vendorId: string) {
+    const vendor = vendors.find((item) => item.id === vendorId);
+    setVendors((list) => list.map((item) => (item.id === vendorId ? { ...item, archived: true, updatedAt: nowIso() } : item)));
+    setNotice(`${vendor?.name ?? "Vendor"} archived. Their past bills and orders are unchanged.`);
+  }
+
   function addPaperStock(stock: Omit<PaperStock, "id">) {
     // A bad sheet cost is the quietest mistake in the system: it silently
     // misprices every future job on this paper rather than failing loudly.
@@ -7592,6 +7641,24 @@ ${latestInbound.bodyText}`;
           setSelectedJobId(jobId);
         }}
         onOpenCustomers={() => activateView("Customer Portal")}
+      />
+    );
+  } else if (displayView === "Vendors") {
+    content = (
+      <Vendors
+        vendors={vendors}
+        // Threads the mailbox already classified as supplier mail, so the screen
+        // can show which suppliers are writing in with no record to file under.
+        vendorThreads={emailThreads.flatMap((thread) => {
+          const inbound = thread.messages.slice().reverse().find((message) => message.direction === "inbound");
+          if (!inbound) return [];
+          const category = classifyBusinessEmail(inbound, { thread }).category;
+          if (!isVendorEmailCategory(category)) return [];
+          return [{ thread, category, from: emailHeaderAddress(inbound.from) }];
+        })}
+        onAddVendor={addVendor}
+        onUpdateVendor={updateVendor}
+        onArchiveVendor={archiveVendor}
       />
     );
   } else if (displayView === "Customer Portal") {
