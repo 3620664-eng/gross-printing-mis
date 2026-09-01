@@ -1,0 +1,42 @@
+/* Latest TEST-only visual refinements */
+
+/* Primary New Job fields should be easier to read at a glance. */
+#fc,#ft,#fp{min-height:44px!important;font-size:14px!important;font-weight:750!important;padding:10px 11px!important}
+label:has(#fc),label:has(#ft),label:has(#fp){font-size:11px!important}
+
+/* Customer summary has three useful cards now that Payment Terms is removed. */
+.customerSummaryGrid.threeSummary{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* Simpler Job Form Choices page. */
+.simpleChoicesPage .panelBody{padding:14px}
+.simpleChoicesIntro{display:flex;flex-direction:column;gap:3px;padding:12px 14px;margin-bottom:12px;border:1px solid #dbe4ee;border-radius:10px;background:#f8fafc}
+.simpleChoicesIntro strong{font-size:13px;color:#24364c}
+.simpleChoicesIntro span{font-size:10px;color:#6b7787}
+.simpleChoicesGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.simpleChoiceCard{border:1px solid #dce3ed;border-radius:11px;background:#fff;overflow:hidden}
+.simpleChoiceHead{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;border-bottom:1px solid #e8edf3;background:#fbfcfe}
+.simpleChoiceHead strong{display:block;font-size:13px}
+.simpleChoiceHead span{display:block;font-size:9px;color:#7a8796;margin-top:2px}
+.simpleChoiceList{padding:7px;display:grid;gap:4px;max-height:310px;overflow:auto}
+.simpleChoiceRow{width:100%;border:1px solid transparent;background:#fff;border-radius:8px;padding:8px 9px;display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;text-align:left;cursor:pointer;color:#263445}
+.simpleChoiceRow:hover{background:#f6f9fc;border-color:#dbe4ee}
+.simpleChoiceRow.selected{background:#eef5fd;border-color:#9fbedf;box-shadow:inset 3px 0 0 #215a9a}
+.choiceNumber{width:24px;height:24px;border-radius:7px;background:#edf2f7;color:#5e6d7e;display:grid;place-items:center;font-size:10px;font-weight:900}
+.simpleChoiceRow.selected .choiceNumber{background:#215a9a;color:#fff}
+.choiceText{font-weight:750;font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.selectedChoiceTools{border-top:1px solid #e8edf3;border-bottom:1px solid #e8edf3;padding:9px 10px;background:#fafcfe;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.selectedLabel{font-size:10px;color:#667587}
+.selectedButtons{display:flex;gap:5px;flex-wrap:wrap}
+.selectedButtons .btn{font-size:9px;padding:5px 7px}
+.selectedButtons .btn:disabled{opacity:.38;cursor:not-allowed}
+.defaultBtnActive{background:#e7f4ec!important;border-color:#b8dcc6!important;color:#176840!important}
+.addChoiceSimple{display:flex;gap:7px;padding:9px 10px}
+.addChoiceSimple input{flex:1;min-width:0}
+.dangerText{color:#b42318!important}
+
+/* Keep Settings icon aligned exactly with the other sidebar icons. */
+#nav button[data-page="settings"]{margin-top:0!important}
+#nav button[data-page="settings"] .navIcon svg{width:20px!important;height:20px!important;stroke-width:1.9!important}
+
+@media(max-width:900px){.simpleChoicesGrid{grid-template-columns:1fr}.customerSummaryGrid.threeSummary{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:620px){.customerSummaryGrid.threeSummary{grid-template-columns:1fr}.selectedChoiceTools{align-items:flex-start;flex-direction:column}}
