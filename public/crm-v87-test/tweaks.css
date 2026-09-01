@@ -1,0 +1,38 @@
+.nav .bottom{margin-top:0}
+.nav button[data-page="settings"]{margin-top:0}
+
+/* Cleaner forms: keep clear sections, no large colored banner. */
+.formHero{display:none!important}
+.polishedFormSection{margin-bottom:10px;border-radius:10px}
+.formSectionTitle{padding:10px 12px;background:#f8fafc}
+.formSectionTitle>span{width:24px;height:24px;border-radius:6px}
+.formSectionTitle h3{font-size:12px}
+.formSectionTitle p{font-size:9px}
+.polishedFormSection>.formGrid,.polishedFormSection>.dynamicFields{padding:11px 12px}
+.formGrid{gap:9px}
+.formGrid input,.formGrid select,.formGrid textarea{min-height:36px}
+
+/* Choice management: simple rows with ordering + default controls. */
+.choiceHelp{margin:0 0 12px;color:#657386;font-size:11px}
+.choiceGridBetter{align-items:start}
+.choiceCardBetter{padding:0;overflow:hidden;background:#fff}
+.choiceCardBetter .choiceCardHead{padding:10px 11px;margin:0;border-bottom:1px solid #e7edf4;background:#fafcfe}
+.choiceRows{display:grid}
+.choiceManageRow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 9px;border-bottom:1px solid #eef2f6}
+.choiceManageRow:last-child{border-bottom:0}
+.choiceName{display:flex;align-items:center;gap:6px;min-width:0}
+.choiceName strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.defaultTag{font-size:8px;font-weight:900;color:#176840;background:#e3f5eb;border:1px solid #caead9;border-radius:999px;padding:2px 5px}
+.choiceActions{display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.miniAction{border:1px solid #d9e2ee;background:#fff;border-radius:6px;padding:4px 6px;font-size:9px;font-weight:800;cursor:pointer;color:#425166}
+.miniAction:hover:not(:disabled){background:#f3f7fb;border-color:#b9c9dc}
+.miniAction.active{background:#e8f3ed;color:#176840;border-color:#bcdcca}
+.miniAction:disabled{opacity:.35;cursor:default}
+.miniAction.dangerText{color:#a5271f}
+.addChoiceRow{display:flex;gap:6px;padding:9px;border-top:1px solid #e7edf4;background:#fbfcfe}
+.addChoiceRow input{min-width:0;flex:1}
+
+/* One address box should read as one field. */
+#custFullAddress{min-height:58px}
+
+@media(max-width:900px){.choiceManageRow{align-items:flex-start;flex-direction:column}.choiceActions{justify-content:flex-start}}
